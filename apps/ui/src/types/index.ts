@@ -6,7 +6,19 @@ export type SourceType =
   | 'rss_article'
   | 'portal_appeal';
 
-export type TopicTag = 'СВО' | 'ЖКХ' | 'Транспорт' | 'Медицина' | 'Образование' | 'Безопасность';
+export type TopicTag =
+  | 'СВО'
+  | 'ЖКХ'
+  | 'Транспорт'
+  | 'Медицина'
+  | 'Образование'
+  | 'Безопасность'
+  | 'Экология'
+  | 'Экономика'
+  | 'АПК'
+  | 'Цифровизация'
+  | 'Культура'
+  | 'Спорт';
 
 export interface NormalizedDocument {
   doc_id: string;
@@ -54,6 +66,7 @@ export interface StatsResponse {
   total_docs: number;
   docs_last_24h: number;
   by_source: { source_type: SourceType; count: number }[];
+  by_tag: { tag: TopicTag; count: number; avg_reach: number; official_share: number }[];
   by_region: { region: string; count: number }[];
   timeline: { date: string; count: number }[];
 }
