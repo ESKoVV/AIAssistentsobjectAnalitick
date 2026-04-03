@@ -6,7 +6,19 @@ export type SourceType =
   | 'rss_article'
   | 'portal_appeal';
 
-export type TopicTag = 'СВО' | 'ЖКХ' | 'Транспорт' | 'Медицина' | 'Образование' | 'Безопасность';
+export type TopicTag =
+  | 'СВО'
+  | 'ЖКХ'
+  | 'Транспорт'
+  | 'Медицина'
+  | 'Образование'
+  | 'Безопасность'
+  | 'Экология'
+  | 'Экономика'
+  | 'АПК'
+  | 'Цифровизация'
+  | 'Культура'
+  | 'Спорт';
 
 export interface NormalizedDocument {
   doc_id: string;
