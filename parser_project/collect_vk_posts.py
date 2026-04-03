@@ -1,13 +1,16 @@
-import os
 import json
+import os
+
 from dotenv import load_dotenv
 
-from vk_client import resolve_screen_name, get_wall_posts
+from kafka_producer import send_document
 from normalizers.vk import normalize_vk_post
+from vk_client import get_wall_posts, resolve_screen_name
 
 load_dotenv()
 
 VK_GROUP_DOMAINS = os.getenv("VK_GROUP_DOMAINS", "")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
 
 
 def get_group_owner_id(screen_name: str) -> int:
@@ -32,7 +35,8 @@ def save_document_jsonl(path: str, doc) -> None:
                 doc.model_dump(),
                 ensure_ascii=False,
                 default=str,
-            ) + "\n"
+            )
+            + "\n"
         )
 
 
@@ -46,6 +50,8 @@ def main():
     for domain in group_domains:
         print(f" - {domain}")
     print("-" * 80)
+
+    total_sent = 0
 
     for domain in group_domains:
         try:
@@ -62,17 +68,22 @@ def main():
 
                 doc = normalize_vk_post(raw_post)
 
+                send_document(KAFKA_TOPIC, doc.model_dump())
+                save_document_jsonl("documents.jsonl", doc)
+
                 short_view = doc.model_dump()
                 short_view.pop("raw_payload", None)
 
                 print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
                 print("-" * 80)
 
-                save_document_jsonl("documents.jsonl", doc)
+                total_sent += 1
 
         except Exception as e:
             print(f"[{domain}] Ошибка: {e}")
             print("-" * 80)
+
+    print(f"Всего отправлено в Kafka: {total_sent}")
 
 
 if __name__ == "__main__":
