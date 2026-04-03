@@ -22,9 +22,10 @@ function App() {
 
   useEffect(() => {
     const alreadySelected = window.localStorage.getItem('selectedRegion');
-    if (alreadySelected) return;
+    const fallbackRegion = alreadySelected ?? REGION_POINTS[0].name;
 
     if (!navigator.geolocation) {
+      setDetectedRegion(fallbackRegion);
       setShowConfirm(true);
       return;
     }
@@ -36,6 +37,7 @@ function App() {
         setShowConfirm(true);
       },
       () => {
+        setDetectedRegion(fallbackRegion);
         setShowConfirm(true);
       },
       { timeout: 4000 }

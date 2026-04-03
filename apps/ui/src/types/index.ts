@@ -66,6 +66,7 @@ export interface StatsResponse {
   total_docs: number;
   docs_last_24h: number;
   by_source: { source_type: SourceType; count: number }[];
+  by_tag: { tag: TopicTag; count: number; avg_reach: number; official_share: number }[];
   by_region: { region: string; count: number }[];
   timeline: { date: string; count: number }[];
 }
