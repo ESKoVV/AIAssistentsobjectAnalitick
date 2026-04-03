@@ -93,12 +93,3 @@ npm install
 npm run dev
 ```
 
-
-## Миграция из legacy-раскладки
-
-Если в корне всё ещё остались `src/`, `index.html`, `package.json` или `parser_project/`, запусти:
-
-```bash
-./scripts/rehome_legacy_layout.sh
-./scripts/verify_structure.sh
-```

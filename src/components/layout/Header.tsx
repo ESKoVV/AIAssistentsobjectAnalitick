@@ -1,0 +1,23 @@
+import { RefreshCw } from 'lucide-react';
+
+interface HeaderProps {
+  onRefresh?: () => void;
+}
+
+export const Header = ({ onRefresh }: HeaderProps) => (
+  <header className="flex items-center justify-between border-b border-slate-700 bg-panel px-6 py-4">
+    <div>
+      <h1 className="text-xl font-semibold">Региональный аналитический дашборд</h1>
+      <p className="font-mono text-xs text-slate-400">UTC: {new Date().toISOString()}</p>
+    </div>
+    {onRefresh && (
+      <button
+        onClick={onRefresh}
+        className="flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm hover:bg-blue-500"
+      >
+        <RefreshCw size={16} />
+        Обновить
+      </button>
+    )}
+  </header>
+);
