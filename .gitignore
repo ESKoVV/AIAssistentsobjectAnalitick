@@ -2,3 +2,4 @@ node_modules/
 apps/ui/node_modules/
 apps/ui/dist/
 .DS_Store
+.venv
