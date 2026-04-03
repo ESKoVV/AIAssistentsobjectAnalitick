@@ -10,7 +10,7 @@ import { Dashboard } from './pages/Dashboard';
 import { DocumentDetail } from './pages/DocumentDetail';
 import { Feed } from './pages/Feed';
 import { Topics } from './pages/Topics';
-import { getClosestRegion, REGION_POINTS } from './utils/regions';
+import { getClosestRegion, isKnownRegionName, REGION_POINTS } from './utils/regions';
 
 function App() {
   const queryClient = useQueryClient();
@@ -22,8 +22,7 @@ function App() {
 
   useEffect(() => {
     const alreadySelected = window.localStorage.getItem('selectedRegion');
-    const isKnownRegion = alreadySelected ? REGION_POINTS.some((region) => region.name === alreadySelected) : false;
-    const fallbackRegion = isKnownRegion ? (alreadySelected as string) : REGION_POINTS[0].name;
+    const fallbackRegion = isKnownRegionName(alreadySelected) ? alreadySelected : REGION_POINTS[0].name;
 
     if (!navigator.geolocation) {
       setDetectedRegion(fallbackRegion);

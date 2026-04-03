@@ -8,11 +8,11 @@ import { Pagination } from '../components/ui/Pagination';
 import { useDocuments } from '../hooks/useDocuments';
 import documents from '../mocks/documents.json';
 import { ALL_TAGS } from '../utils/documentTags';
-import { REGION_POINTS } from '../utils/regions';
+import { isKnownRegionName, REGION_POINTS } from '../utils/regions';
 import { DocumentFilters, NormalizedDocument } from '../types';
 
 const savedRegion =
-  typeof window !== 'undefined' && REGION_POINTS.some((region) => region.name === window.localStorage.getItem('selectedRegion'))
+  typeof window !== 'undefined' && isKnownRegionName(window.localStorage.getItem('selectedRegion'))
     ? window.localStorage.getItem('selectedRegion') ?? ''
     : '';
 

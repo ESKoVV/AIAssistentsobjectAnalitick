@@ -110,3 +110,6 @@ export const getClosestRegion = (lat: number, lon: number): string => {
 
   return nearest.name;
 };
+
+export const isKnownRegionName = (regionName: string | null): regionName is string =>
+  Boolean(regionName) && REGION_POINTS.some((region) => region.name === regionName);
