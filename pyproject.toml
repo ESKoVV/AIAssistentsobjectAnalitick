@@ -9,6 +9,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+clustering = [
+    "aiokafka>=0.10.0",
+    "hdbscan>=0.8.33",
+    "numpy>=1.26.0",
+    "psycopg[binary]>=3.2.0",
+    "scikit-learn>=1.5.0",
+]
+embeddings = [
+    "aiokafka>=0.10.0",
+    "psycopg[binary]>=3.2.0",
+    "redis>=5.0.0",
+    "torch>=2.3.0",
+    "transformers>=4.41.0",
+]
 dev = [
     "pytest>=9.0.0",
 ]
