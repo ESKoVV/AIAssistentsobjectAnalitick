@@ -8,13 +8,10 @@ import { Pagination } from '../components/ui/Pagination';
 import { useDocuments } from '../hooks/useDocuments';
 import documents from '../mocks/documents.json';
 import { ALL_TAGS } from '../utils/documentTags';
-import { isKnownRegionName, REGION_POINTS } from '../utils/regions';
+import { REGION_POINTS } from '../utils/regions';
 import { DocumentFilters, NormalizedDocument } from '../types';
 
-const savedRegion =
-  typeof window !== 'undefined' && isKnownRegionName(window.localStorage.getItem('selectedRegion'))
-    ? window.localStorage.getItem('selectedRegion') ?? ''
-    : '';
+const savedRegion = typeof window !== 'undefined' ? window.localStorage.getItem('selectedRegion') ?? '' : '';
 
 export const Feed = () => {
   const [filters, setFilters] = useState<DocumentFilters>({ page: 1, limit: 20, region: savedRegion, tags: [] });
