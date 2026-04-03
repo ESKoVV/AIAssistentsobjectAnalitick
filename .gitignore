@@ -6,3 +6,4 @@ apps/ui/dist/
 __pycache__/
 *.py[cod]
 .python_package
+.env
