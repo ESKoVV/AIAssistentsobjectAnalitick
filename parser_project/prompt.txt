@@ -1,0 +1,703 @@
+PS C:\Users\koksi\Desktop\projectic\AIAssistentGETNew\AIAssistentsobjectAnalitick\parser_project> py collect_vk_posts.py
+Получено постов: 5
+--------------------------------------------------------------------------------
+{
+  "doc_id": "e1370703-5ae7-464b-8f64-59f359a235fe",
+  "source_type": "vk_post",
+  "source_id": "-1_400529",
+  "parent_id": null,
+  "text": "Создаём единое пространство для всех разработчиков открытых технологий ВКонтакте 🖥\n \nТеперь новости, обновления и обсуждения API ВКонтакте ждут вас в сообществе VK Mini Apps — ищите по тегу #vkapi@vkappsdev . А ещё вы сможете больше узнать о мини-приложениях и играх. \n\nЗачем объединяться?\n✔ Все темы разработки ВКонтакте — в одном сообществе\n✔ Удобнее следить за обновлениями, фичами и возможностями\n✔ Больше комьюнити = больше знаний и поддержки\n\nПодписывайтесь [https://vk.com/vkappsdev|на сообщество VK Mini Apps], чтобы продолжать расти вместе с нами 💙",
+  "media_type": "text",
+  "created_at": "2025-06-03T06:40:28Z",
+  "collected_at": "2026-04-03T17:48:58.797351Z",
+  "author_id": "-1",
+  "is_official": false,
+  "reach": 55462,
+  "likes": 54,
+  "reposts": 9,
+  "comments_count": 22,
+  "region_hint": null,
+  "geo_lat": null,
+  "geo_lon": null,
+  "raw_payload": {
+    "inner_type": "wall_wallpost",
+    "ads_easy_promote": {
+      "type": 2,
+      "text": "Что-то пошло не так.",
+      "label_text": "",
+      "button_text": "",
+      "is_ad_not_easy": false
+    },
+    "donut": {
+      "is_donut": false
+    },
+    "comments": {
+      "can_post": 1,
+      "count": 22,
+      "groups_can_post": true
+    },
+    "marked_as_ads": 0,
+    "hash": "k63GpoomUmb0aRu8VxN9HvETzx0k",
+    "type": "post",
+    "push_subscription": {
+      "is_subscribed": false
+    },
+    "attachments": [
+      {
+        "type": "photo",
+        "photo": {
+          "album_id": -7,
+          "date": 1748925784,
+          "id": 457242722,
+          "owner_id": -1,
+          "access_key": "c5d892bfa1be9100cd",
+          "post_id": 400528,
+          "sizes": [
+            {
+              "height": 72,
+              "type": "s",
+              "width": 72,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=72x0"
+            },
+            {
+              "height": 160,
+              "type": "m",
+              "width": 160,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=160x0"
+            },
+            {
+              "height": 640,
+              "type": "x",
+              "width": 640,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=640x0"
+            },
+            {
+              "height": 1080,
+              "type": "y",
+              "width": 1080,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=1080x0"
+            },
+            {
+              "height": 1080,
+              "type": "z",
+              "width": 1080,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=1080x0"
+            },
+            {
+              "height": 108,
+              "type": "o",
+              "width": 108,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=108x0"
+            },
+            {
+              "height": 240,
+              "type": "p",
+              "width": 240,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=240x0"
+            },
+            {
+              "height": 360,
+              "type": "q",
+              "width": 360,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=360x0"
+            },
+            {
+              "height": 540,
+              "type": "r",
+              "width": 540,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA&cs=540x0"
+            },
+            {
+              "height": 1080,
+              "type": "base",
+              "width": 1080,
+              "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA"
+            }
+          ],
+          "text": "",
+          "user_id": 100,
+          "web_view_token": "6fc9b765f291b066b0",
+          "has_tags": false,
+          "orig_photo": {
+            "height": 1080,
+            "type": "base",
+            "url": "https://sun9-76.userapi.com/s/v1/ig2/_9QL5o3C1bzlu5WTCSfCOP9FeOuPhgPbkatmjhdXAAAxcepYKyqsgBNPVFzZd0UsGvgRcJcbKvv3dOGE0O4iHb_K.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&u=P8F8i2twxrHugZV1cSXrFfocTGC0TtBRX05dxL9E5QA",
+            "width": 1080
+          }
+        }
+      }
+    ],
+    "date": 1748932828,
+    "edited": 1748932935,
+    "from_id": -1,
+    "id": 400529,
+    "is_favorite": false,
+    "likes": {
+      "can_like": 1,
+      "count": 54,
+      "user_likes": 0,
+      "can_publish": 1,
+      "repost_disabled": false
+    },
+    "owner_id": -1,
+    "post_source": {
+      "type": "api"
+    },
+    "post_type": "post",
+    "reposts": {
+      "count": 9,
+      "user_reposted": 0
+    },
+    "text": "Создаём единое пространство для всех разработчиков открытых технологий ВКонтакте 🖥\n \nТеперь новости, обновления и обсуждения API ВКонтакте ждут вас в сообществе VK Mini Apps — ищите по тегу #vkapi@vkappsdev . А ещё вы сможете больше узнать о мини-приложениях и играх. \n\nЗачем объединяться?\n✔ Все темы разработки ВКонтакте — в одном сообществе\n✔ Удобнее следить за обновлениями, фичами и возможностями\n✔ Больше комьюнити = больше знаний и поддержки\n\nПодписывайтесь [https://vk.com/vkappsdev|на сообщество VK Mini Apps], чтобы продолжать расти вместе с нами 💙",
+    "views": {
+      "count": 55462
+    },
+    "track_code": "0xabcdefomdfZrMFkF8LJ5BVkn22MYwpBTNHIio0wDhKLR1j1Deqc2B2u24qQfhiqkrjL4hm6lPyUSNppjaINYBh-XXyXPhMhzzyJKZxqG74I-oz8y7CExJGRC7BSIcyy4I5r_FiZm2q"
+  }
+}
+--------------------------------------------------------------------------------
+{
+  "doc_id": "8671efbc-2a9e-4cf5-8583-de5eb060a08d",
+  "source_type": "vk_post",
+  "source_id": "-1_400458",
+  "parent_id": null,
+  "text": "Обновляем обработку вложений в постах.\n\nВ 2024 году создание контента ВКонтакте [https://vk.com/@authors-chto-vazhno-uchest-avtoram-vkontakte-pri-sozdanii-postov|преобразилось], и мы продолжаем приводить публикацию записей к общему виду. Сейчас меняется обработка аттачей в методах wall․post и wall.edit. Обновления и детали будут размещены в документации: dev.vk.com/ru/method/wall \n\nЕсли появятся вопросы, пишите в поддержку ВКонтакте.",
+  "media_type": "text",
+  "created_at": "2025-02-27T09:46:08Z",
+  "collected_at": "2026-04-03T17:48:58.801993Z",
+  "author_id": "-1",
+  "is_official": false,
+  "reach": 76061,
+  "likes": 103,
+  "reposts": 24,
+  "comments_count": 64,
+  "region_hint": null,
+  "geo_lat": null,
+  "geo_lon": null,
+  "raw_payload": {
+    "inner_type": "wall_wallpost",
+    "ads_easy_promote": {
+      "type": 2,
+      "text": "Что-то пошло не так.",
+      "label_text": "",
+      "button_text": "",
+      "is_ad_not_easy": false
+    },
+    "donut": {
+      "is_donut": false
+    },
+    "comments": {
+      "can_post": 1,
+      "count": 64,
+      "groups_can_post": true
+    },
+    "marked_as_ads": 0,
+    "hash": "c9vBQUq1tgxwCFtid_ivhKmzgnK5",
+    "type": "post",
+    "push_subscription": {
+      "is_subscribed": false
+    },
+    "attachments": [
+      {
+        "type": "photo",
+        "photo": {
+          "album_id": -7,
+          "date": 1740648457,
+          "id": 457242700,
+          "owner_id": -1,
+          "access_key": "f6ec432ef1939484dd",
+          "post_id": 400457,
+          "sizes": [
+            {
+              "height": 40,
+              "type": "s",
+              "width": 72,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=72x0"
+            },
+            {
+              "height": 90,
+              "type": "m",
+              "width": 160,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=160x0"
+            },
+            {
+              "height": 360,
+              "type": "x",
+              "width": 640,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=640x0"
+            },
+            {
+              "height": 607,
+              "type": "y",
+              "width": 1080,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=1080x0"
+            },
+            {
+              "height": 720,
+              "type": "z",
+              "width": 1280,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=1280x0"
+            },
+            {
+              "height": 1440,
+              "type": "w",
+              "width": 2560,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=2560x0"
+            },
+            {
+              "height": 61,
+              "type": "o",
+              "width": 108,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=108x0"
+            },
+            {
+              "height": 135,
+              "type": "p",
+              "width": 240,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=240x0"
+            },
+            {
+              "height": 202,
+              "type": "q",
+              "width": 360,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=360x0"
+            },
+            {
+              "height": 304,
+              "type": "r",
+              "width": 540,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk&cs=540x0"
+            },
+            {
+              "height": 1440,
+              "type": "base",
+              "width": 2560,
+              "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk"
+            }
+          ],
+          "text": "",
+          "user_id": 100,
+          "web_view_token": "1c1daa0c61a3754505",
+          "has_tags": false,
+          "orig_photo": {
+            "height": 1440,
+            "type": "base",
+            "url": "https://sun9-10.userapi.com/s/v1/ig2/4_geiRUneQFmrBQd7OrAgP8uU08LWM7-2MdE1Ygn3RbJ5mycVAQo-FL_b3XIzPjN-ylCvB4aiEVPJPclNikcv_6t.jpg?quality=95&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,2560x1440&from=bu&u=LDPqQKVtYwQ-oM9qAkmvf67JJLrno7WgcPJKA9JZOvk",
+            "width": 2560
+          }
+        }
+      }
+    ],
+    "date": 1740649568,
+    "from_id": -1,
+    "id": 400458,
+    "is_favorite": false,
+    "likes": {
+      "can_like": 1,
+      "count": 103,
+      "user_likes": 0,
+      "can_publish": 1,
+      "repost_disabled": false
+    },
+    "owner_id": -1,
+    "post_source": {
+      "type": "api"
+    },
+    "post_type": "post",
+    "reposts": {
+      "count": 24,
+      "user_reposted": 0
+    },
+    "text": "Обновляем обработку вложений в постах.\n\nВ 2024 году создание контента ВКонтакте [https://vk.com/@authors-chto-vazhno-uchest-avtoram-vkontakte-pri-sozdanii-postov|преобразилось], и мы продолжаем приводить публикацию записей к общему виду. Сейчас меняется обработка аттачей в методах wall․post и wall.edit. Обновления и детали будут размещены в документации: dev.vk.com/ru/method/wall \n\nЕсли появятся вопросы, пишите в поддержку ВКонтакте.",
+    "views": {
+      "count": 76061
+    },
+    "track_code": "0xabcdefomdfZrMFkF8LJ5BVkn22MYwpBTNHIio0wDhKLR1j1Deqc2B2YG4rQfhiqkrjL4hm6lPyUSNppjaINYBh-XXyXPhMhzzyJKZxqG74I-oz8y7CExJGRC7BSIcyy4I5rmf_Zm2q"
+  }
+}
+--------------------------------------------------------------------------------
+{
+  "doc_id": "9145ab9f-4758-4c0a-916f-6a2b24ac69d3",
+  "source_type": "vk_post",
+  "source_id": "-1_400376",
+  "parent_id": null,
+  "text": "После 1 декабря 2024 года серверы Callback API и Longpoll API, использующие устаревшие версии API (старее 5.81), перестанут поддерживаться. Чтобы события продолжали корректно приходить, перейдите на актуальную версию API — 5.199. Как это сделать, подробно описали [dev.vk.com/ru/api/deprecated-version-message|здесь].\n\nСерверы Callback API и Longpoll API с устаревшими версиями API, будут деактивированы, поэтому мы рекомендуем обновить версию API как можно скорее.",
+  "media_type": "text",
+  "created_at": "2024-10-17T10:38:06Z",
+  "collected_at": "2026-04-03T17:48:58.802384Z",
+  "author_id": "-1",
+  "is_official": false,
+  "reach": 68701,
+  "likes": 91,
+  "reposts": 39,
+  "comments_count": 47,
+  "region_hint": null,
+  "geo_lat": null,
+  "geo_lon": null,
+  "raw_payload": {
+    "inner_type": "wall_wallpost",
+    "ads_easy_promote": {
+      "type": 2,
+      "text": "Что-то пошло не так.",
+      "label_text": "",
+      "button_text": "",
+      "is_ad_not_easy": false
+    },
+    "donut": {
+      "is_donut": false
+    },
+    "comments": {
+      "can_post": 1,
+      "count": 47,
+      "groups_can_post": true
+    },
+    "marked_as_ads": 0,
+    "hash": "p8O2mrXo1Sif4mH30TS1xgml-xhf",
+    "type": "post",
+    "push_subscription": {
+      "is_subscribed": false
+    },
+    "attachments": [],
+    "date": 1729161486,
+    "from_id": -1,
+    "id": 400376,
+    "is_favorite": false,
+    "likes": {
+      "can_like": 1,
+      "count": 91,
+      "user_likes": 0,
+      "can_publish": 1,
+      "repost_disabled": false
+    },
+    "owner_id": -1,
+    "post_source": {
+      "type": "vk"
+    },
+    "post_type": "post",
+    "reposts": {
+      "count": 39,
+      "user_reposted": 0
+    },
+    "text": "После 1 декабря 2024 года серверы Callback API и Longpoll API, использующие устаревшие версии API (старее 5.81), перестанут поддерживаться. Чтобы события продолжали корректно приходить, перейдите на актуальную версию API — 5.199. Как это сделать, подробно описали [dev.vk.com/ru/api/deprecated-version-message|здесь].\n\nСерверы Callback API и Longpoll API с устаревшими версиями API, будут деактивированы, поэтому мы рекомендуем обновить версию API как можно скорее.",
+    "views": {
+      "count": 68701
+    },
+    "track_code": "0xabcdefomdfZrMFkF8LJ5BVkn22MYwpBTNHIio0wDhKLR1j1Deqc2Bx0m4oQfhiqkrjL4hm6lPyUSNppjaINYBh-XXyXPhMhzzyJKZxqG74I-oz8y7CExJGRC7BSIcyy4I5rjZNZm2q"
+  }
+}
+--------------------------------------------------------------------------------
+{
+  "doc_id": "3169c9e6-eab8-47b8-a0a0-15185904bab1",
+  "source_type": "vk_post",
+  "source_id": "-1_400364",
+  "parent_id": null,
+  "text": "Как создать своё мини-приложение ВКонтакте и монетизировать его? \n\nПринесли вам пошаговую инструкцию с картинками: для [https://vk.com/selectel|Академии Selectel] её составил независимый разработчик [https://vk.com/idmkolba|Егор Горошкин] — на примере мини-приложения для мониторинга погоды он описал весь путь разработки сервиса на платформе [https://vk.com/vkappsdev|VK Mini Apps] и наглядно показал весь алгоритм действий. Читать тут: vk.cc/czgDem",
+  "media_type": "text",
+  "created_at": "2024-10-01T10:01:00Z",
+  "collected_at": "2026-04-03T17:48:58.802569Z",
+  "author_id": "-1",
+  "is_official": false,
+  "reach": 69830,
+  "likes": 62,
+  "reposts": 45,
+  "comments_count": 16,
+  "region_hint": null,
+  "geo_lat": null,
+  "geo_lon": null,
+  "raw_payload": {
+    "inner_type": "wall_wallpost",
+    "ads_easy_promote": {
+      "type": 2,
+      "text": "Что-то пошло не так.",
+      "label_text": "",
+      "button_text": "",
+      "is_ad_not_easy": false
+    },
+    "donut": {
+      "is_donut": false
+    },
+    "comments": {
+      "can_post": 1,
+      "count": 16,
+      "groups_can_post": true
+    },
+    "marked_as_ads": 0,
+    "hash": "JajZnt4RgNgdhMo2akqIdXsxl3o1",
+    "type": "post",
+    "push_subscription": {
+      "is_subscribed": false
+    },
+    "attachments": [
+      {
+        "type": "photo",
+        "photo": {
+          "album_id": -7,
+          "date": 1727768825,
+          "id": 457242691,
+          "owner_id": -1,
+          "access_key": "be191c323904209ea5",
+          "post_id": 400364,
+          "sizes": [
+            {
+              "height": 36,
+              "type": "s",
+              "width": 72,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=72x0"
+            },
+            {
+              "height": 79,
+              "type": "m",
+              "width": 160,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=160x0"
+            },
+            {
+              "height": 317,
+              "type": "x",
+              "width": 640,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=640x0"
+            },
+            {
+              "height": 536,
+              "type": "y",
+              "width": 1080,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=1080x0"
+            },
+            {
+              "height": 614,
+              "type": "z",
+              "width": 1238,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=1238x0"
+            },
+            {
+              "height": 54,
+              "type": "o",
+              "width": 108,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=108x0"
+            },
+            {
+              "height": 119,
+              "type": "p",
+              "width": 240,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=240x0"
+            },
+            {
+              "height": 179,
+              "type": "q",
+              "width": 360,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=360x0"
+            },
+            {
+              "height": 268,
+              "type": "r",
+              "width": 540,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8&cs=540x0"
+            },
+            {
+              "height": 614,
+              "type": "base",
+              "width": 1238,
+              "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8"
+            }
+          ],
+          "text": "",
+          "user_id": 100,
+          "web_view_token": "e5ca25c868cb9b4fee",
+          "has_tags": false,
+          "orig_photo": {
+            "height": 614,
+            "type": "base",
+            "url": "https://sun9-43.userapi.com/s/v1/ig2/VB03aHZ-q1lDtYKCDvKGojxdx-2pTEJ-3jPGYjBDZT_IrDo-FYSQwI47uV6xKcziOrWfBkf-idRrFGup1jQUakkE.jpg?quality=96&as=32x16,48x24,72x36,108x54,160x79,240x119,360x179,480x238,540x268,640x317,720x357,1080x536,1238x614&from=bu&u=Uzfq2EcUmTjsfocViTBQKqogfDi_TB7MtDBNXKJ-ok8",
+            "width": 1238
+          }
+        }
+      }
+    ],
+    "date": 1727776860,
+    "from_id": -1,
+    "id": 400364,
+    "is_favorite": false,
+    "likes": {
+      "can_like": 1,
+      "count": 62,
+      "user_likes": 0,
+      "can_publish": 1,
+      "repost_disabled": false
+    },
+    "owner_id": -1,
+    "post_source": {
+      "type": "vk"
+    },
+    "post_type": "post",
+    "reposts": {
+      "count": 45,
+      "user_reposted": 0
+    },
+    "text": "Как создать своё мини-приложение ВКонтакте и монетизировать его? \n\nПринесли вам пошаговую инструкцию с картинками: для [https://vk.com/selectel|Академии Selectel] её составил независимый разработчик [https://vk.com/idmkolba|Егор Горошкин] — на примере мини-приложения для мониторинга погоды он описал весь путь разработки сервиса на платформе [https://vk.com/vkappsdev|VK Mini Apps] и наглядно показал весь алгоритм действий. Читать тут: vk.cc/czgDem",
+    "views": {
+      "count": 69830
+    },
+    "track_code": "0xabcdefomdfZrMFkF8LJ5BVkn22MYwpBTNHIio0wDhKLR1j1Deqc2Bxxm4pQfhiqkrjL4hm6lPyUSNppjaINYBh-XXyXPhMhzzyJKZxqG74I-oz8y7CExJGRC7BSIcyy4I5rotUZm2q"
+  }
+}
+--------------------------------------------------------------------------------
+{
+  "doc_id": "bf469139-d69d-4d7b-9a9b-5876a1f2b977",
+  "source_type": "vk_post",
+  "source_id": "-1_400332",
+  "parent_id": null,
+  "text": "Главные фичи открытых платформ ВКонтакте, тренды, масштабирование и лайфхаки от экспертов ждут вас — митап «Возможности открытых платформ ВКонтакте» пройдёт 25 июля!\n\nСпецы из VK Mini Apps, Игр ВКонтакте и VK Testers расскажут о лучших механиках тестирования сервисов, об ускорении запуска приложений через дополнительное кеширование, об идеальных метриках для игр и даже о no-code конструкторах.\n\nМы поможем разрабам и тестерам сделать работу продуктов по-настоящему эффективной! Поучаствовать можно онлайн или офлайн — в московском офисе VK в БЦ Skylight. Подпишитесь [https://vk.com/app5898182_-166562603#s=2916545|на рассылку], чтобы зарегистрироваться. До встречи!",
+  "media_type": "text",
+  "created_at": "2024-07-18T09:00:02Z",
+  "collected_at": "2026-04-03T17:48:58.802932Z",
+  "author_id": "-1",
+  "is_official": false,
+  "reach": 59647,
+  "likes": 61,
+  "reposts": 10,
+  "comments_count": 15,
+  "region_hint": null,
+  "geo_lat": null,
+  "geo_lon": null,
+  "raw_payload": {
+    "inner_type": "wall_wallpost",
+    "ads_easy_promote": {
+      "type": 2,
+      "text": "Что-то пошло не так.",
+      "label_text": "",
+      "button_text": "",
+      "is_ad_not_easy": false
+    },
+    "donut": {
+      "is_donut": false
+    },
+    "comments": {
+      "can_post": 1,
+      "count": 15,
+      "groups_can_post": true
+    },
+    "marked_as_ads": 0,
+    "hash": "ZEX4_2xmGsw5eEN3Zaju20o8lLpT",
+    "type": "post",
+    "push_subscription": {
+      "is_subscribed": false
+    },
+    "attachments": [
+      {
+        "type": "photo",
+        "photo": {
+          "album_id": -7,
+          "date": 1721293039,
+          "id": 457242687,
+          "owner_id": -1,
+          "access_key": "347e51a0007503f90d",
+          "post_id": 400332,
+          "sizes": [
+            {
+              "height": 40,
+              "type": "s",
+              "width": 72,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=72x0"
+            },
+            {
+              "height": 90,
+              "type": "m",
+              "width": 160,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=160x0"
+            },
+            {
+              "height": 360,
+              "type": "x",
+              "width": 640,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=640x0"
+            },
+            {
+              "height": 607,
+              "type": "y",
+              "width": 1080,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=1080x0"
+            },
+            {
+              "height": 720,
+              "type": "z",
+              "width": 1280,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=1280x0"
+            },
+            {
+              "height": 1080,
+              "type": "w",
+              "width": 1920,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=1920x0"
+            },
+            {
+              "height": 61,
+              "type": "o",
+              "width": 108,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=108x0"
+            },
+            {
+              "height": 135,
+              "type": "p",
+              "width": 240,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=240x0"
+            },
+            {
+              "height": 202,
+              "type": "q",
+              "width": 360,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=360x0"
+            },
+            {
+              "height": 304,
+              "type": "r",
+              "width": 540,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE&cs=540x0"
+            },
+            {
+              "height": 1080,
+              "type": "base",
+              "width": 1920,
+              "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE"
+            }
+          ],
+          "text": "",
+          "user_id": 100,
+          "web_view_token": "a89c9d6e99db6b4336",
+          "has_tags": false,
+          "orig_photo": {
+            "height": 1080,
+            "type": "base",
+            "url": "https://sun9-72.userapi.com/s/v1/ig2/3gf6b8vvT5brBd8MVChC8Epo_euTNoeJsyj6jx3V0y3kdyFBqY6ZVzkj9DLewvxMQaB3dyVOTL0FLnANAg3LIoAs.jpg?quality=96&as=32x18,48x27,72x40,108x61,160x90,240x135,360x202,480x270,540x304,640x360,720x405,1080x607,1280x720,1440x810,1920x1080&from=bu&u=CLXqsTf49kIuOGFNwokcFRa5szEKHW3jk7Dn-pl_aEE",
+            "width": 1920
+          }
+        }
+      }
+    ],
+    "date": 1721293202,
+    "from_id": -1,
+    "id": 400332,
+    "is_favorite": false,
+    "likes": {
+      "can_like": 1,
+      "count": 61,
+      "user_likes": 0,
+      "can_publish": 1,
+      "repost_disabled": false
+    },
+    "owner_id": -1,
+    "post_source": {
+      "type": "vk"
+    },
+    "post_type": "post",
+    "reposts": {
+      "count": 10,
+      "user_reposted": 0
+    },
+    "text": "Главные фичи открытых платформ ВКонтакте, тренды, масштабирование и лайфхаки от экспертов ждут вас — митап «Возможности открытых платформ ВКонтакте» пройдёт 25 июля!\n\nСпецы из VK Mini Apps, Игр ВКонтакте и VK Testers расскажут о лучших механиках тестирования сервисов, об ускорении запуска приложений через дополнительное кеширование, об идеальных метриках для игр и даже о no-code конструкторах.\n\nМы поможем разрабам и тестерам сделать работу продуктов по-настоящему эффективной! Поучаствовать можно онлайн или офлайн — в московском офисе VK в БЦ Skylight. Подпишитесь [https://vk.com/app5898182_-166562603#s=2916545|на рассылку], чтобы зарегистрироваться. До встречи!",
+    "views": {
+      "count": 59647
+    },
+    "track_code": "0xabcdefomdfZrMFkF8LJ5BVkn22MYwpBTNHIio0wDhKLR1j1Deqc2Bx5m4uQfhiqkrjL4hm6lPyUSNppjaINYBh-XXyXPhMhzzyJKZxqG74I-oz8y7CExJGRC7BSIcyy4I5rV8pZm2q"
+  }
+}
+--------------------------------------------------------------------------------
+PS C:\Users\koksi\Desktop\projectic\AIAssistentGETNew\AIAssistentsobjectAnalitick\parser_project>

@@ -1,5 +1,5 @@
 from schema import NormalizedDocument
-from datetime import datetime
+from datetime import datetime, UTC
 
 doc = NormalizedDocument(
     doc_id="test-id",
@@ -10,8 +10,8 @@ doc = NormalizedDocument(
     text="Тестовый пост",
     media_type="text",
 
-    created_at=datetime.utcnow(),
-    collected_at=datetime.utcnow(),
+    created_at=datetime.now(UTC),
+    collected_at=datetime.now(UTC),
 
     author_id="user_1",
     is_official=False,
