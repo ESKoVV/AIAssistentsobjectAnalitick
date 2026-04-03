@@ -13,8 +13,8 @@ from typing import Optional
 class SourceType(str, Enum):
     VK_POST = "vk_post"
     VK_COMMENT = "vk_comment"
-    TELEGRAM_POST = "telegram_post"
-    TELEGRAM_COMMENT = "telegram_comment"
+    MAX_POST = "max_post"
+    MAX_COMMENT = "max_comment"
     RSS_ARTICLE = "rss_article"
     PORTAL_APPEAL = "portal_appeal"
 
@@ -53,7 +53,7 @@ class NormalizedDocument:
 1. `Структурная нормализация`
 Принимает source-specific raw payload и `source_config`.
 Отдает `NormalizedDocument`.
-Это единственная точка, где допускается логика форматов VK, Telegram, RSS и порталов.
+Это единственная точка, где допускается логика форматов VK, MAX, RSS и порталов.
 
 2. `Определение языка`
 Принимает `NormalizedDocument`.
@@ -115,7 +115,7 @@ class NormalizedDocument:
 ## Обязательные тесты по каждой таске
 
 1. `Task 1 / structural normalization`
-- Contract test: VK, Telegram, RSS и portal payload приводятся к одному `NormalizedDocument`.
+- Contract test: VK, MAX, RSS и portal payload приводятся к одному `NormalizedDocument`.
 - Edge tests: пустой `text`, отсутствующий `reach`, локальный timestamp, разные форматы `source_id` и `author_id`, комментарий с `parent_id`.
 
 2. `Task 2 / language detection`
@@ -149,7 +149,7 @@ class NormalizedDocument:
 ## Полные prompts по таскам
 
 1. `Task 1 / structural normalization`
-Реализуй deterministic structural normalization для VK, Telegram, RSS и portal sources. Вход: raw payload источника плюс `source_config`. Выход: строго `NormalizedDocument` с полями `doc_id`, `source_type`, `source_id`, `parent_id`, `text`, `media_type`, `created_at`, `collected_at`, `author_id`, `is_official`, `reach`, `likes`, `reposts`, `comments_count`, `region_hint`, `geo_lat`, `geo_lon`, `raw_payload`. Все timestamps должны быть в UTC, `raw_payload` должен сохраняться без изменений, source-specific поля не должны утекать downstream. Обязательно напиши `tests/contract/test_structural_normalization.py` и `tests/unit/test_structural_normalization.py` с кейсами для VK, Telegram, RSS, portal, пустого текста, отсутствующего reach, разных форматов id и комментария с `parent_id`.
+Реализуй deterministic structural normalization для VK, MAX, RSS и portal sources. Вход: raw payload источника плюс `source_config`. Выход: строго `NormalizedDocument` с полями `doc_id`, `source_type`, `source_id`, `parent_id`, `text`, `media_type`, `created_at`, `collected_at`, `author_id`, `is_official`, `reach`, `likes`, `reposts`, `comments_count`, `region_hint`, `geo_lat`, `geo_lon`, `raw_payload`. Все timestamps должны быть в UTC, `raw_payload` должен сохраняться без изменений, source-specific поля не должны утекать downstream. Обязательно напиши `tests/contract/test_structural_normalization.py` и `tests/unit/test_structural_normalization.py` с кейсами для VK, MAX, RSS, portal, пустого текста, отсутствующего reach, разных форматов id и комментария с `parent_id`.
 
 2. `Task 2 / language detection`
 Реализуй language detection сразу после structural normalization с использованием `fasttext-lid`. Вход: `NormalizedDocument`. Выход: объект, который сохраняет все поля `NormalizedDocument` и добавляет `language`, `language_confidence`, `is_supported_language`. Поддерживаемым языком preprocessing-правил считается только `ru`; не-русские документы нельзя удалять, их нужно только маркировать. Обязательно напиши `tests/contract/test_language_detection.py` и `tests/unit/test_language_detection.py` с кейсами для русского, казахского, смешанного, пустого и emoji-only текста.
