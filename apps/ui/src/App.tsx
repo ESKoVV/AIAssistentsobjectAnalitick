@@ -14,7 +14,7 @@ import { getClosestRegion, REGION_POINTS } from './utils/regions';
 
 function App() {
   const queryClient = useQueryClient();
-  const [detectedRegion, setDetectedRegion] = useState<string>('Центральный район');
+  const [detectedRegion, setDetectedRegion] = useState<string>('Москва');
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSelection, setShowSelection] = useState(false);
 
@@ -22,9 +22,11 @@ function App() {
 
   useEffect(() => {
     const alreadySelected = window.localStorage.getItem('selectedRegion');
-    if (alreadySelected) return;
+    const isKnownRegion = alreadySelected ? REGION_POINTS.some((region) => region.name === alreadySelected) : false;
+    const fallbackRegion = isKnownRegion ? (alreadySelected as string) : REGION_POINTS[0].name;
 
     if (!navigator.geolocation) {
+      setDetectedRegion(fallbackRegion);
       setShowConfirm(true);
       return;
     }
@@ -36,6 +38,7 @@ function App() {
         setShowConfirm(true);
       },
       () => {
+        setDetectedRegion(fallbackRegion);
         setShowConfirm(true);
       },
       { timeout: 4000 }
@@ -49,9 +52,9 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header onRefresh={() => queryClient.invalidateQueries()} />
-      <div className="flex">
+      <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1">
           <PageWrapper>

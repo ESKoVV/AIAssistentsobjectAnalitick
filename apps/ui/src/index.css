@@ -3,9 +3,13 @@
 @tailwind utilities;
 
 body {
-  @apply bg-background text-slate-100;
+  @apply m-0 bg-background text-slate-100;
 }
 
 * {
   scrollbar-width: thin;
+}
+
+#root {
+  min-height: 100vh;
 }
