@@ -31,7 +31,7 @@ for f in "${required_files[@]}"; do
   [[ -f "$f" ]] || { echo "Missing file: $f"; exit 1; }
 done
 
-for legacy in src index.html package.json postcss.config.js tailwind.config.js tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts .env; do
+for legacy in src index.html package.json postcss.config.js tailwind.config.js tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts .env parser_project AGENTS.md; do
   if [[ -e "$legacy" ]]; then
     echo "Legacy root file still exists: $legacy"
     exit 1
