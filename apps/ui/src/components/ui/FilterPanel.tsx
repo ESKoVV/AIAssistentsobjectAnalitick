@@ -15,11 +15,13 @@ const toDate = (date: Date) => date.toISOString().slice(0, 10);
 
 export const FilterPanel = ({ filters, regions, onChange, onReset, allTags }: FilterPanelProps) => {
   const [showPeriodOptions, setShowPeriodOptions] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodMode>('all');
 
   const periodMode = useMemo<PeriodMode>(() => {
+    if (selectedPeriod === 'custom') return 'custom';
     if (!filters.date_from && !filters.date_to) return 'all';
     return 'custom';
-  }, [filters.date_from, filters.date_to]);
+  }, [filters.date_from, filters.date_to, selectedPeriod]);
 
   const applyPeriod = (mode: Exclude<PeriodMode, 'custom'>) => {
     const now = new Date();
@@ -27,12 +29,14 @@ export const FilterPanel = ({ filters, regions, onChange, onReset, allTags }: Fi
 
     if (mode === 'all') {
       onChange({ ...filters, page: 1, date_from: undefined, date_to: undefined });
+      setSelectedPeriod('all');
       setShowPeriodOptions(false);
       return;
     }
 
     if (mode === 'today') {
       onChange({ ...filters, page: 1, date_from: today, date_to: today });
+      setSelectedPeriod('today');
       setShowPeriodOptions(false);
       return;
     }
@@ -42,6 +46,7 @@ export const FilterPanel = ({ filters, regions, onChange, onReset, allTags }: Fi
     from.setDate(now.getDate() - days);
 
     onChange({ ...filters, page: 1, date_from: toDate(from), date_to: today });
+    setSelectedPeriod(mode);
     setShowPeriodOptions(false);
   };
 
@@ -50,7 +55,10 @@ export const FilterPanel = ({ filters, regions, onChange, onReset, allTags }: Fi
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-lg font-semibold">Фильтры ленты</h3>
         <button
-          onClick={onReset}
+          onClick={() => {
+            setSelectedPeriod('all');
+            onReset();
+          }}
           className="rounded-md border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 transition hover:border-slate-400 hover:bg-slate-800"
         >
           Сбросить
@@ -122,6 +130,7 @@ export const FilterPanel = ({ filters, regions, onChange, onReset, allTags }: Fi
                 </button>
                 <button
                   onClick={() => {
+                    setSelectedPeriod('custom');
                     setShowPeriodOptions(false);
                     onChange({ ...filters, page: 1 });
                   }}
