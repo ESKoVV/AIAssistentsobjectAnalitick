@@ -1,0 +1,9 @@
+node_modules/
+apps/ui/node_modules/
+apps/ui/dist/
+.DS_Store
+
+# TypeScript build artifacts
+*.tsbuildinfo
+apps/ui/vite.config.js
+apps/ui/vite.config.d.ts
