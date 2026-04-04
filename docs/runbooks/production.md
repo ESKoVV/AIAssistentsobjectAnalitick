@@ -104,13 +104,19 @@ cp deploy/docker/.env.production.example deploy/docker/.env.production
 docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile bootstrap run --rm db-backup
 docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile bootstrap run --rm bootstrap
 docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile bootstrap run --rm create-topics
-docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml up -d kafka kafka-ui consumer preprocessing-consumer vk-collector rss-collector sentiment-consumer embedding-consumer clustering-full clustering-incremental summarization-consumer ranking-consumer api ui db-metrics-exporter
+docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml up -d kafka kafka-ui consumer preprocessing-consumer sentiment-consumer embedding-consumer clustering-full clustering-incremental db-metrics-exporter
 ```
 
-Если нужен локальный self-hosted LLM внутри compose, добавьте профиль `llm`:
+Если нужны реальные source collectors, добавьте профиль `sources`:
 
 ```bash
-docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile llm up -d vllm
+docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile sources up -d vk-collector rss-collector
+```
+
+Если нужен локальный self-hosted LLM и верхний контур `summarization -> ranking -> API -> UI`, добавьте профиль `llm`:
+
+```bash
+docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile llm up -d vllm summarization-consumer ranking-consumer api ui
 ```
 
 ## 6. Acceptance Checks

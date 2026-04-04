@@ -165,6 +165,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/python-worker.Dockerfile
+    profiles: ["sources"]
     command: python parser_project/collect_vk_posts.py
     environment:
       <<: *common-env
@@ -183,6 +184,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/python-worker.Dockerfile
+    profiles: ["sources"]
     command: python parser_project/collect_rss.py
     environment:
       <<: *common-env
@@ -264,6 +266,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/python-worker.Dockerfile
+    profiles: ["llm"]
     command: python -m apps.orchestration.runtime.run_summarization_consumer
     environment:
       <<: [*common-env, *orchestration-env]
@@ -278,6 +281,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/python-worker.Dockerfile
+    profiles: ["llm"]
     command: python -m apps.orchestration.runtime.run_ranking_consumer
     environment:
       <<: [*common-env, *orchestration-env]
@@ -291,6 +295,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/api.Dockerfile
+    profiles: ["llm"]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       API_DATABASE_URL: ${DATABASE_URL}
@@ -319,6 +324,7 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
         VITE_USE_MOCKS: ${VITE_USE_MOCKS:-false}
         VITE_API_TOKEN: ${VITE_API_TOKEN:-}
+    profiles: ["llm"]
     depends_on:
       api:
         condition: service_started
