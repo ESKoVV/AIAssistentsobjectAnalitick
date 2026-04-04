@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from apps.api.public.cache import TopCache
 from apps.api.schemas.top import TopQueryParams, TopResponse
@@ -16,9 +16,9 @@ def test_cache_round_trip_uses_pydantic_json_serialization() -> None:
     cache = TopCache(redis_dsn=None, ttl_seconds=300)
     params = TopQueryParams(period="24h", limit=5)
     payload = TopResponse(
-        computed_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
-        period_start=datetime(2026, 4, 3, 12, 0, tzinfo=UTC),
-        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        computed_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
+        period_start=datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc),
+        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         total_clusters=0,
         items=[],
     )

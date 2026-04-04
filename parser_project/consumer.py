@@ -21,6 +21,44 @@ def build_dlq_message(*, raw_message: dict, error: str, offset: int, partition: 
     }
 
 
+def save_failed_message(raw_message: dict, error: str) -> None:
+    CONFIG.failed_messages_path.parent.mkdir(parents=True, exist_ok=True)
+    with CONFIG.failed_messages_path.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "failed_at": datetime.now(UTC).isoformat(),
+                    "error": error,
+                    "message": raw_message,
+                },
+                ensure_ascii=False,
+                default=str,
+            )
+            + "\n"
+        )
+
+
+def publish_to_dlq(
+    dlq_producer: KafkaProducer,
+    *,
+    raw_message: dict,
+    error: str,
+    offset: int,
+    partition: int,
+) -> None:
+    payload = build_dlq_message(
+        raw_message=raw_message,
+        error=error,
+        offset=offset,
+        partition=partition,
+    )
+    try:
+        dlq_producer.send(CONFIG.kafka_raw_dlq_topic, payload)
+        dlq_producer.flush()
+    except Exception:  # noqa: BLE001
+        save_failed_message(raw_message, error)
+
+
 def persist_raw_payload(raw_data: dict) -> str:
     raw_message = RawMessage.model_validate(raw_data)
     upsert_raw_message(raw_message)
@@ -57,28 +95,22 @@ def main() -> None:
                 print(f"✅ Raw message сохранён в raw_messages: {persisted_id}")
             except ValidationError as exc:
                 print(f"❌ Ошибка валидации raw message offset={message.offset}: {exc}")
-                dlq_producer.send(
-                    CONFIG.kafka_raw_dlq_topic,
-                    build_dlq_message(
-                        raw_message=raw_data,
-                        error=f"validation_error: {exc}",
-                        offset=message.offset,
-                        partition=message.partition,
-                    ),
+                publish_to_dlq(
+                    dlq_producer,
+                    raw_message=raw_data,
+                    error=f"validation_error: {exc}",
+                    offset=message.offset,
+                    partition=message.partition,
                 )
-                dlq_producer.flush()
             except Exception as exc:
                 print(f"❌ Ошибка raw persistence offset={message.offset}: {exc}")
-                dlq_producer.send(
-                    CONFIG.kafka_raw_dlq_topic,
-                    build_dlq_message(
-                        raw_message=raw_data,
-                        error=str(exc),
-                        offset=message.offset,
-                        partition=message.partition,
-                    ),
+                publish_to_dlq(
+                    dlq_producer,
+                    raw_message=raw_data,
+                    error=str(exc),
+                    offset=message.offset,
+                    partition=message.partition,
                 )
-                dlq_producer.flush()
     except KeyboardInterrupt:
         print("\nОстановлено пользователем.")
     finally:

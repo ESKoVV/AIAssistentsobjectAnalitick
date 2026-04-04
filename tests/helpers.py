@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from apps.ml.embeddings.schema import EmbeddedDocument
@@ -18,7 +18,7 @@ def build_enriched_document(
     *,
     doc_id: str = "vk_post:embedded-1",
 ) -> EnrichedDocument:
-    timestamp = datetime(2026, 4, 3, 9, 0, tzinfo=UTC)
+    timestamp = datetime(2026, 4, 3, 9, 0, tzinfo=timezone.utc)
     return EnrichedDocument(
         doc_id=doc_id,
         source_type=SourceType.VK_POST,
@@ -100,7 +100,7 @@ def build_cluster_document_record(
         author_id=author_id,
         source_type=source_type,
         reach=reach,
-        created_at=created_at or datetime(2026, 4, 4, 9, 0, tzinfo=UTC),
+        created_at=created_at or datetime(2026, 4, 4, 9, 0, tzinfo=timezone.utc),
         region=region,
     )
 
@@ -125,8 +125,8 @@ def build_cluster(
     cohesion_score: float = 0.9,
     algorithm_params: dict[str, object] | None = None,
 ) -> Cluster:
-    timestamp = created_at or datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
-    start = period_start or datetime(2026, 4, 4, 0, 0, tzinfo=UTC)
+    timestamp = created_at or datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
+    start = period_start or datetime(2026, 4, 4, 0, 0, tzinfo=timezone.utc)
     end = period_end or timestamp
     earliest = earliest_doc_at or start
     latest = latest_doc_at or end
@@ -166,7 +166,7 @@ def build_summarization_document_record(
         author_id=author_id,
         source_type=source_type,
         text=text,
-        created_at=created_at or datetime(2026, 4, 4, 9, 0, tzinfo=UTC),
+        created_at=created_at or datetime(2026, 4, 4, 9, 0, tzinfo=timezone.utc),
         region=region,
         embedding=embedding or [1.0, 0.0],
     )
@@ -203,7 +203,7 @@ def build_cluster_description(
         sample_doc_ids=sample_doc_ids or ["doc-1", "doc-2", "doc-3"],
         model_name=model_name,
         prompt_version=prompt_version,
-        generated_at=generated_at or datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        generated_at=generated_at or datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         input_token_count=input_token_count,
         output_token_count=output_token_count,
         generation_time_ms=generation_time_ms,
@@ -289,8 +289,8 @@ def build_ranked_cluster(
         score_breakdown=score_breakdown or build_score_breakdown(),
         summary=summary,
         key_phrases=key_phrases or ["нет горячей воды", "сроки восстановления подачи"],
-        period_start=period_start or datetime(2026, 4, 4, 8, 0, tzinfo=UTC),
-        period_end=period_end or datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        period_start=period_start or datetime(2026, 4, 4, 8, 0, tzinfo=timezone.utc),
+        period_end=period_end or datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         size=size,
         mention_count=size,
         growth_rate=growth_rate,

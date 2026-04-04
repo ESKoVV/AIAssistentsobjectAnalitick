@@ -1,6 +1,6 @@
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from kafka import KafkaConsumer
@@ -33,7 +33,7 @@ def save_failed_message(raw_message: dict, error: str) -> None:
         handle.write(
             json.dumps(
                 {
-                    "failed_at": datetime.now(UTC).isoformat(),
+                    "failed_at": datetime.now(timezone.utc).isoformat(),
                     "error": error,
                     "message": raw_message,
                 },

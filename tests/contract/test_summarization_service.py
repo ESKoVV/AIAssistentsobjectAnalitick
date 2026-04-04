@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from apps.ml.summarization.schema import ClusterDescription, DescriptionsUpdatedEvent
 from tests.helpers import build_cluster_description
@@ -37,7 +37,7 @@ def test_cluster_description_contract_contains_expected_fields() -> None:
 
 def test_descriptions_updated_event_contains_updated_ids_and_mode() -> None:
     event = DescriptionsUpdatedEvent(
-        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         updated_cluster_ids=["cluster-1", "cluster-2"],
     )
 

@@ -1,11 +1,14 @@
+import os
+import time
 from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import TopicAlreadyExistsError
+from kafka.errors import NodeNotReadyError, NoBrokersAvailable, TopicAlreadyExistsError
 
 from config import load_config
 
 CONFIG = load_config()
 
-RAW_TOPIC_PARTITIONS = 4
+RAW_TOPIC_PARTITIONS = int(os.getenv("KAFKA_RAW_TOPIC_PARTITIONS", "4"))
+DEFAULT_TOPIC_REPLICATION_FACTOR = int(os.getenv("KAFKA_TOPIC_REPLICATION_FACTOR", "2"))
 RAW_TOPIC_RETENTION_MS = 7 * 24 * 3600 * 1000
 RAW_TOPIC_COMPRESSION = "lz4"
 
@@ -17,10 +20,11 @@ def _broker_count(bootstrap_servers: str) -> int:
 
 def _build_topic(topic_name: str, *, broker_count: int) -> NewTopic:
     if topic_name in {CONFIG.kafka_raw_topic, CONFIG.kafka_raw_dlq_topic}:
-        replication_factor = 2 if broker_count >= 2 else 1
+        target_replication = 3 if broker_count >= 3 else DEFAULT_TOPIC_REPLICATION_FACTOR
+        replication_factor = max(1, min(target_replication, broker_count))
         return NewTopic(
             name=topic_name,
-            num_partitions=RAW_TOPIC_PARTITIONS,
+            num_partitions=max(1, RAW_TOPIC_PARTITIONS),
             replication_factor=replication_factor,
             topic_configs={
                 "retention.ms": str(RAW_TOPIC_RETENTION_MS),
@@ -28,7 +32,7 @@ def _build_topic(topic_name: str, *, broker_count: int) -> NewTopic:
             },
         )
 
-    replication_factor = 2 if broker_count >= 2 else 1
+    replication_factor = max(1, min(DEFAULT_TOPIC_REPLICATION_FACTOR, broker_count))
     return NewTopic(
         name=topic_name,
         num_partitions=1,
@@ -36,11 +40,30 @@ def _build_topic(topic_name: str, *, broker_count: int) -> NewTopic:
     )
 
 
+def _create_admin_client(max_attempts: int = 5, retry_delay_seconds: float = 1.0) -> KafkaAdminClient:
+    last_error: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return KafkaAdminClient(
+                bootstrap_servers=CONFIG.kafka_bootstrap_servers,
+                client_id="topic-creator",
+            )
+        except (NoBrokersAvailable, NodeNotReadyError) as exc:
+            last_error = exc
+            if attempt == max_attempts:
+                break
+            time.sleep(retry_delay_seconds)
+
+    raise RuntimeError(
+        "Kafka broker недоступен для create_topic.py после повторных попыток. "
+        "Проверь KAFKA_BOOTSTRAP_SERVERS "
+        f"(сейчас: {CONFIG.kafka_bootstrap_servers!r}) "
+        "и убедись, что контейнер kafka запущен."
+    ) from last_error
+
+
 def main() -> None:
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=CONFIG.kafka_bootstrap_servers,
-        client_id="topic-creator",
-    )
+    admin_client = _create_admin_client()
     broker_count = _broker_count(CONFIG.kafka_bootstrap_servers)
 
     topics_to_create = [

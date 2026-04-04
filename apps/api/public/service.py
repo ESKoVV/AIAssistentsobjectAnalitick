@@ -433,14 +433,14 @@ class TopAPIService:
         )
 
     def _validate_top_params(self, params: TopQueryParams) -> None:
-        if params.as_of is not None and params.as_of > datetime.now(UTC):
+        if params.as_of is not None and params.as_of > datetime.now(timezone.utc):
             raise SemanticValidationError(
                 error_code="as_of_in_future",
             message="Параметр as_of не может указывать в будущее",
             )
 
     def _ensure_fresh(self, snapshot: SnapshotRecord) -> None:
-        age_minutes = (datetime.now(UTC) - snapshot.computed_at).total_seconds() / 60
+        age_minutes = (datetime.now(timezone.utc) - snapshot.computed_at).total_seconds() / 60
         if age_minutes > self._config.freshness_threshold_minutes:
             raise StaleDataError()
 
@@ -512,7 +512,7 @@ def _granularity_to_delta(granularity: GranularityLiteral) -> timedelta:
 
 
 def _bucket_start(value: datetime, granularity: GranularityLiteral) -> datetime:
-    normalized = value.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+    normalized = value.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
     if granularity == "hourly":
         return normalized
     if granularity == "6h":

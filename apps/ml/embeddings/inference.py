@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Callable, Protocol, Sequence
 
 from apps.ml.embeddings.config import EmbeddingServiceConfig
@@ -37,7 +37,7 @@ class EmbeddingPipeline:
         self._config = config
         self._tokenizer = tokenizer
         self._backend = backend
-        self._clock = clock or (lambda: datetime.now(UTC))
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._perf_counter = perf_counter or time.perf_counter
         self._metrics_tracker = metrics_tracker or DailyCosineTracker()
 

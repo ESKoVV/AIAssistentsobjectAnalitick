@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from statistics import mean, pstdev
 from typing import Sequence
 
@@ -31,7 +31,7 @@ class DailyCosineTracker:
         self._count = 0
 
     def observe(self, cosine_value: float, *, now: datetime) -> float:
-        normalized_now = now.astimezone(UTC)
+        normalized_now = now.astimezone(timezone.utc)
         current_day = normalized_now.date()
         if self._day != current_day:
             self._day = current_day

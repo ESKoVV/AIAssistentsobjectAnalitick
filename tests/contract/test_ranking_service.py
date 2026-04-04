@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from apps.ml.ranking.schema import RankingMetrics, RankingsUpdatedEvent
 from tests.helpers import build_ranked_cluster, build_score_breakdown
@@ -77,9 +77,9 @@ def test_ranked_cluster_contract_contains_expected_fields() -> None:
 def test_rankings_updated_event_contract_contains_expected_fields() -> None:
     event = RankingsUpdatedEvent(
         ranking_id="ranking-1",
-        computed_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
-        period_start=datetime(2026, 4, 4, 0, 0, tzinfo=UTC),
-        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        computed_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
+        period_start=datetime(2026, 4, 4, 0, 0, tzinfo=timezone.utc),
+        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         top_n=10,
     )
 
@@ -89,7 +89,7 @@ def test_rankings_updated_event_contract_contains_expected_fields() -> None:
 
 def test_ranking_metrics_contract_contains_expected_fields() -> None:
     metrics = RankingMetrics(
-        computed_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        computed_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         candidates_total=12,
         candidates_excluded=2,
         exclusion_reasons={"too_small": 1, "stale": 1},

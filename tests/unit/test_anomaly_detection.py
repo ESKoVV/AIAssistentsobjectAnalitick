@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apps.preprocessing.deduplication import DeduplicatedDocument
 from apps.preprocessing.filtering import FilterStatus
@@ -9,7 +9,7 @@ from apps.preprocessing.normalization import MediaType, SourceType
 
 
 def test_velocity_detects_exact_duplicate_flood_within_window() -> None:
-    start = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+    start = datetime(2026, 4, 2, 9, 0, tzinfo=timezone.utc)
     documents = [
         _build_document(
             doc_id=f"doc-{index}",
@@ -32,7 +32,7 @@ def test_velocity_detects_exact_duplicate_flood_within_window() -> None:
 
 
 def test_velocity_ignores_exact_duplicate_flood_outside_window() -> None:
-    start = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+    start = datetime(2026, 4, 2, 9, 0, tzinfo=timezone.utc)
     documents = [
         _build_document(
             doc_id=f"doc-{index}",
@@ -51,7 +51,7 @@ def test_velocity_ignores_exact_duplicate_flood_outside_window() -> None:
 
 
 def test_velocity_detects_near_duplicate_flood() -> None:
-    start = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+    start = datetime(2026, 4, 2, 9, 0, tzinfo=timezone.utc)
     documents = [
         _build_document(
             doc_id=f"doc-{index}",
@@ -75,7 +75,7 @@ def test_velocity_detects_near_duplicate_flood() -> None:
 
 
 def test_author_burst_detects_single_author() -> None:
-    start = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+    start = datetime(2026, 4, 2, 9, 0, tzinfo=timezone.utc)
     documents = [
         _build_document(
             doc_id=f"doc-{index}",
@@ -96,7 +96,7 @@ def test_author_burst_detects_single_author() -> None:
 
 
 def test_author_burst_adds_bot_timing_for_tightly_spaced_posts() -> None:
-    start = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+    start = datetime(2026, 4, 2, 9, 0, tzinfo=timezone.utc)
     documents = [
         _build_document(
             doc_id=f"doc-{index}",

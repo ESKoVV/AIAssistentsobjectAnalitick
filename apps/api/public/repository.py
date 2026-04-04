@@ -5,7 +5,7 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Sequence
 
 from apps.ml.ranking.source_urls import extract_source_url
@@ -372,7 +372,7 @@ class PublicAPIRepository:
                 )
                 rows = cursor.fetchall()
             connection.commit()
-        counts = {row["hour"].astimezone(UTC): (int(row["count"]), int(row["reach"])) for row in rows}
+        counts = {row["hour"].astimezone(timezone.utc): (int(row["count"]), int(row["reach"])) for row in rows}
         return _build_complete_timeline(counts=counts, now=now, hours=hours)
 
     def fetch_history_snapshots(
@@ -408,7 +408,7 @@ class PublicAPIRepository:
         ]
 
     def fetch_health_snapshot(self, *, freshness_threshold_minutes: int) -> HealthSnapshot:
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         with self._connect() as connection:
             with connection.cursor(row_factory=self._dict_row_factory()) as cursor:
                 ranking_row = self._safe_fetch_latest(cursor, "rankings", "computed_at")
@@ -896,7 +896,7 @@ def _build_complete_timeline(
     now: datetime,
     hours: int,
 ) -> list[SnapshotTimelineRecord]:
-    end = now.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+    end = now.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
     start = end - timedelta(hours=hours - 1)
     timeline: list[SnapshotTimelineRecord] = []
     previous_count = 0
