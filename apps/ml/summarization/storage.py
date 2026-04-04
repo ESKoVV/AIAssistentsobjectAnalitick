@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any, Iterable, Protocol, Sequence
 
 from apps.ml.clustering.schema import Cluster
@@ -148,7 +148,7 @@ class InMemorySummarizationRepository:
                     summary=existing.description.summary,
                     prompt_version=existing.description.prompt_version,
                     generated_at=existing.description.generated_at,
-                    superseded_at=datetime.now(UTC),
+                    superseded_at=datetime.now(timezone.utc),
                 ),
             )
         self.descriptions[description.description.cluster_id] = description
@@ -307,7 +307,7 @@ class PostgresSummarizationRepository:
                             str(existing_row[0]),
                             str(existing_row[1]),
                             existing_row[2],
-                            datetime.now(UTC),
+                            datetime.now(timezone.utc),
                         ),
                     )
 

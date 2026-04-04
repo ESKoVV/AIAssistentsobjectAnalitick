@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Protocol, Sequence
 
 from apps.ml.clustering.schema import Cluster
@@ -116,7 +116,7 @@ class ClusterDescriptionService:
         *,
         now: datetime | None = None,
     ) -> ClusterDescriptionBatchResult:
-        now = now or datetime.now(UTC)
+        now = now or datetime.now(timezone.utc)
         prompt_spec = load_prompt_spec(self._config.prompts_path)
         prompt_version = hash_prompt_spec(prompt_spec)
         cluster_ids = _deduplicate_ids(changed_cluster_ids)
@@ -231,8 +231,8 @@ class ClusterDescriptionService:
         base_user_prompt = render_user_prompt(
             prompt_spec,
             size=cluster.size,
-            period_start=cluster.period_start.astimezone(UTC).strftime("%d.%m.%Y %H:%M"),
-            period_end=cluster.period_end.astimezone(UTC).strftime("%d.%m.%Y %H:%M"),
+            period_start=cluster.period_start.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M"),
+            period_end=cluster.period_end.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M"),
             source_types=source_types,
             geo_regions=geo_regions,
             texts=texts_block,
@@ -252,8 +252,8 @@ class ClusterDescriptionService:
             user_prompt = render_user_prompt(
                 prompt_spec,
                 size=cluster.size,
-                period_start=cluster.period_start.astimezone(UTC).strftime("%d.%m.%Y %H:%M"),
-                period_end=cluster.period_end.astimezone(UTC).strftime("%d.%m.%Y %H:%M"),
+                period_start=cluster.period_start.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M"),
+                period_end=cluster.period_end.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M"),
                 source_types=source_types,
                 geo_regions=geo_regions,
                 texts=texts_block,

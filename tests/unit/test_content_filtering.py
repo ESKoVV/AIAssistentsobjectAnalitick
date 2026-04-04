@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from apps.preprocessing.deduplication import DeduplicatedDocument
 from apps.preprocessing.filtering import FilterStatus, apply_anomaly_detection, filter_content
@@ -56,7 +56,7 @@ def test_short_but_relevant_message_passes() -> None:
 
 
 def test_anomaly_review_reduces_quality_weight_without_dropping_document() -> None:
-    base_time = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+    base_time = datetime(2026, 4, 2, 9, 0, tzinfo=timezone.utc)
     documents = [
         _build_deduplicated_document(
             doc_id=f"vk_post:flood-{index}",
@@ -78,7 +78,7 @@ def test_anomaly_review_reduces_quality_weight_without_dropping_document() -> No
 
 
 def test_normal_distribution_keeps_quality_weight_unchanged() -> None:
-    base_time = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+    base_time = datetime(2026, 4, 2, 9, 0, tzinfo=timezone.utc)
     documents = [
         _build_deduplicated_document(
             doc_id=f"vk_post:normal-{index}",

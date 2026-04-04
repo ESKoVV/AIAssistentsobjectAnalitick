@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -38,8 +38,8 @@ def test_hdbscan_on_synthetic_embeddings_finds_two_clusters_and_noise() -> None:
     clusters, _, _ = cluster_documents(
         documents,
         ClusteringParams(min_cluster_size=2, min_samples=1),
-        period_start=datetime(2026, 4, 4, 0, 0, tzinfo=UTC),
-        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        period_start=datetime(2026, 4, 4, 0, 0, tzinfo=timezone.utc),
+        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
     )
 
     assert len([cluster for cluster in clusters if not cluster.noise]) == 2
@@ -63,7 +63,7 @@ def test_reconcile_preserves_cluster_id_only_for_best_match_above_threshold() ->
 
 
 def test_online_assignment_splits_strong_matches_and_buffered_candidates() -> None:
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     snapshot = ClustererSnapshot(
         snapshot_id="snapshot-1",
         clusterer=object(),
@@ -91,7 +91,7 @@ def test_online_assignment_splits_strong_matches_and_buffered_candidates() -> No
 
 
 def test_enrich_cluster_computes_aggregates_and_growth_rate() -> None:
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     documents = [
         build_cluster_document_record(
             doc_id="doc-1",
@@ -144,7 +144,7 @@ def test_metrics_follow_monitoring_contract() -> None:
     metrics = build_metrics(
         clusters,
         n_documents=5,
-        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         min_cluster_size=10,
         runtime_seconds=1.25,
     )

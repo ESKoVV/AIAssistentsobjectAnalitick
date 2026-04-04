@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -21,7 +21,7 @@ def test_clustering_runtime_and_noise_smoke() -> None:
         build_cluster_document_record(
             doc_id=f"doc-{index}",
             embedding=[1.0, 0.0] if index < 32 else [0.0, 1.0],
-            created_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC) - timedelta(minutes=index),
+            created_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc) - timedelta(minutes=index),
         )
         for index in range(64)
     ]
@@ -31,14 +31,14 @@ def test_clustering_runtime_and_noise_smoke() -> None:
     clusters, _, _ = cluster_documents(
         documents,
         params,
-        period_start=datetime(2026, 4, 1, 12, 0, tzinfo=UTC),
-        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        period_start=datetime(2026, 4, 1, 12, 0, tzinfo=timezone.utc),
+        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
     )
     runtime = time.perf_counter() - started_at
     metrics = build_metrics(
         clusters,
         n_documents=len(documents),
-        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         min_cluster_size=params.min_cluster_size,
         runtime_seconds=runtime,
     )

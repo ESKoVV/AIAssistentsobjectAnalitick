@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from apps.ml.summarization.config import SummarizationServiceConfig
 from apps.ml.summarization.schema import LLMResponse, LLMUsage
@@ -164,17 +164,17 @@ def test_service_skips_cached_cluster_and_creates_history_on_regeneration(tmp_pa
         cluster_id="cluster-1",
         cluster_size_at_generation=10,
         prompt_version=hash_prompt_spec(load_prompt_spec(prompt_path)),
-        generated_at=datetime(2026, 4, 4, 11, 30, tzinfo=UTC),
+        generated_at=datetime(2026, 4, 4, 11, 30, tzinfo=timezone.utc),
     )
 
-    skipped = asyncio.run(service.process_cluster_ids([cluster.cluster_id], now=datetime(2026, 4, 4, 12, 0, tzinfo=UTC)))
+    skipped = asyncio.run(service.process_cluster_ids([cluster.cluster_id], now=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)))
 
     assert skipped.updated_cluster_ids == ()
     assert skipped.metrics.clusters_skipped == 1
 
     repository.clusters[cluster.cluster_id] = build_cluster(cluster_id="cluster-1", size=14, doc_ids=["doc-1"])
     regenerated = asyncio.run(
-        service.process_cluster_ids([cluster.cluster_id], now=datetime(2026, 4, 4, 12, 30, tzinfo=UTC)),
+        service.process_cluster_ids([cluster.cluster_id], now=datetime(2026, 4, 4, 12, 30, tzinfo=timezone.utc)),
     )
 
     assert regenerated.updated_cluster_ids == ("cluster-1",)

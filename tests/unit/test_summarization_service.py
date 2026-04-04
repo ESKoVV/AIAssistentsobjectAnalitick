@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apps.ml.summarization.config import SummarizationServiceConfig
 from apps.ml.summarization.schema import LLMResponse, LLMUsage
@@ -35,7 +35,7 @@ class SequenceLLMClient:
 
 
 def test_should_regenerate_when_prompt_hash_changes_growth_exceeds_threshold_or_description_is_stale() -> None:
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     cluster = build_cluster(size=14, growth_rate=3.0)
     existing = build_stored_cluster_description(
         cluster_size_at_generation=10,

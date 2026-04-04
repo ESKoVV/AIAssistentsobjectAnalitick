@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apps.ml.ranking import InMemoryRankingRepository, RankingService, RankingServiceConfig
 from apps.orchestration.consumers import RankingConsumer, RankingConsumerDependencies
@@ -26,7 +26,7 @@ class FakeProducer:
 
 
 def test_consumer_recomputes_ranking_and_publishes_event() -> None:
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     repository = InMemoryRankingRepository()
 
     cluster_1 = build_cluster(
