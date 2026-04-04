@@ -6,25 +6,21 @@ import { FilterPanel } from '../components/ui/FilterPanel';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Pagination } from '../components/ui/Pagination';
 import { useDocuments } from '../hooks/useDocuments';
-import documents from '../mocks/documents.json';
+import { useRegions } from '../hooks/useRegions';
 import { ALL_TAGS } from '../utils/documentTags';
 import { REGION_POINTS } from '../utils/regions';
-import { DocumentFilters, NormalizedDocument } from '../types';
+import { DocumentFilters } from '../types';
 
 const savedRegion = typeof window !== 'undefined' ? window.localStorage.getItem('selectedRegion') ?? '' : '';
 
 export const Feed = () => {
   const [filters, setFilters] = useState<DocumentFilters>({ page: 1, limit: 20, region: savedRegion, tags: [] });
   const { data, isLoading, error } = useDocuments(filters);
+  const { data: regionsFromApi } = useRegions();
+
   const regions = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...(documents as NormalizedDocument[]).map((d) => d.region_hint).filter(Boolean),
-          ...REGION_POINTS.map((region) => region.name)
-        ])
-      ) as string[],
-    []
+    () => Array.from(new Set([...(regionsFromApi ?? []), ...REGION_POINTS.map((region) => region.name)])),
+    [regionsFromApi]
   );
 
   return (
