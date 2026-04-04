@@ -29,7 +29,7 @@ export const Feed = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-semibold">Лента документов</h2>
+      <h2 className="text-2xl font-semibold">Лента постов</h2>
       <FilterPanel
         filters={filters}
         regions={regions}
@@ -39,7 +39,7 @@ export const Feed = () => {
       />
       {isLoading && <LoadingState />}
       {error && <ErrorState message={(error as Error).message} />}
-      {!isLoading && !error && data?.items.length === 0 && <EmptyState title="Документы не найдены" />}
+      {!isLoading && !error && data?.items.length === 0 && <EmptyState title="Посты не найдены" />}
       <div className="grid gap-3">
         {data?.items.map((doc) => (
           <DocumentCard key={doc.doc_id} doc={doc} />

@@ -8,12 +8,12 @@ export const RegionBarChart = ({ data }: { data: { region: string; count: number
         <XAxis type="number" stroke="#94a3b8" />
         <YAxis type="category" dataKey="region" width={140} stroke="#cbd5e1" />
         <Tooltip
-          formatter={(value: number) => [`${value}`, 'Документов']}
+          formatter={(value: number) => [`${value}`, 'Постов']}
           contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 8 }}
           labelStyle={{ color: '#e2e8f0' }}
           itemStyle={{ color: '#93c5fd' }}
         />
-        <Bar dataKey="count" name="Документов" fill="#3b82f6" />
+        <Bar dataKey="count" name="Постов" fill="#3b82f6" />
       </BarChart>
     </ResponsiveContainer>
   </div>

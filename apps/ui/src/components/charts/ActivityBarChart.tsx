@@ -7,8 +7,13 @@ export const ActivityBarChart = ({ data }: { data: { hour: string; count: number
         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
         <XAxis dataKey="hour" stroke="#94a3b8" />
         <YAxis stroke="#94a3b8" />
-        <Tooltip />
-        <Bar dataKey="count" fill="#3b82f6" />
+        <Tooltip
+          formatter={(value: number) => [`${value}`, 'Постов']}
+          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 8 }}
+          labelStyle={{ color: '#e2e8f0' }}
+          itemStyle={{ color: '#93c5fd' }}
+        />
+        <Bar dataKey="count" name="Постов" fill="#3b82f6" />
       </BarChart>
     </ResponsiveContainer>
   </div>

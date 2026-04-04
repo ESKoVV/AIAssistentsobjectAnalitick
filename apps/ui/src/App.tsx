@@ -61,6 +61,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/feed" element={<Feed />} />
               <Route path="/topics" element={<Topics />} />
+              <Route path="/post/:id" element={<DocumentDetail />} />
               <Route path="/document/:id" element={<DocumentDetail />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="*" element={<Navigate to="/" replace />} />

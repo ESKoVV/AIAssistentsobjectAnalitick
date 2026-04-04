@@ -29,7 +29,7 @@ export const Dashboard = () => {
     <div className="space-y-4">
       <h2 className="text-2xl font-semibold">Обзор за текущие сутки</h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Всего документов за 24ч" value={stats.docs_last_24h} />
+        <KpiCard label="Всего постов за 24ч" value={stats.docs_last_24h} />
         <KpiCard label="Официальных источников" value={Math.round(stats.docs_last_24h * 0.22)} />
         <KpiCard label="Активных регионов" value={stats.by_region.length} />
         <KpiCard label="Новых тем" value={topicsQuery.data?.items.length ?? 0} />
@@ -48,7 +48,7 @@ export const Dashboard = () => {
       </section>
 
       <section>
-        <h3 className="mb-2 text-lg font-semibold">Последние 10 документов</h3>
+        <h3 className="mb-2 text-lg font-semibold">Последние 10 постов</h3>
         <div className="grid gap-3">{docsQuery.data?.items.map((doc) => <DocumentCard key={doc.doc_id} doc={doc} />)}</div>
       </section>
     </div>
