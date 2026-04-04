@@ -24,11 +24,11 @@ from config import load_config, validate_db_config
 from schema import RawMessage
 
 CONFIG = load_config()
-validate_db_config(CONFIG)
 
 
 @contextmanager
 def get_connection() -> Generator[psycopg.Connection, None, None]:
+    validate_db_config(CONFIG)
     conn = psycopg.connect(CONFIG.database_url)
     try:
         yield conn
@@ -97,6 +97,28 @@ def upsert_raw_message(message: RawMessage) -> UUID:
             row = cur.fetchone()
     if row is None:
         raise RuntimeError("raw_messages upsert did not return id")
+    return UUID(str(row[0]))
+
+
+def find_raw_message_id(*, source_type: Any, source_id: str) -> UUID | None:
+    query = """
+    SELECT id
+    FROM raw_messages
+    WHERE source_type = %(source_type)s
+      AND source_id = %(source_id)s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                query,
+                {
+                    "source_type": _enum_value(source_type),
+                    "source_id": source_id,
+                },
+            )
+            row = cur.fetchone()
+    if row is None:
+        return None
     return UUID(str(row[0]))
 
 

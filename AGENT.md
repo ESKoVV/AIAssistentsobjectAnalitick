@@ -56,15 +56,27 @@ The pipeline is strictly ordered:
 
 Agents must not bypass or reorder these stages without an explicit architecture decision.
 
+Canonical runtime flow for message ingestion and preprocessing:
+
+1. Ingestion publishes `RawMessage` events into Kafka topic `raw.documents`.
+2. A raw persistence consumer reads `raw.documents` and writes audit-only records into `raw_messages`.
+3. A separate preprocessing worker reads `raw.documents` using its own consumer group.
+4. The preprocessing worker executes structural normalization, language detection, content filtering, text cleaning, deduplication, geo enrichment, and metadata enrichment.
+5. The preprocessing worker writes the resulting enriched/preprocessed contract into `normalized_messages`.
+6. Only non-drop documents are published downstream into Kafka topic `preprocessed.documents`.
+
+For the message pipeline, `raw_messages` and `normalized_messages` are the canonical storage pair.
+`raw_documents` and `normalized_documents` are legacy tables and must not be used for new production paths without an explicit architecture decision.
+
 ---
 
 ## Domain concepts
 
 Use these terms consistently:
 
-- RawMessage: unprocessed record from a source
-- NormalizedMessage: unified internal representation
-- EnrichedMessage: normalized message with geo and metadata enrichment
+- RawMessage: unprocessed source record and canonical persistence unit for `raw_messages`
+- NormalizedMessage: deterministic preprocessing result stored in `normalized_messages`
+- EnrichedMessage: `NormalizedMessage` after geo and metadata enrichment, before embeddings
 - MessageEmbedding: vector representation of a message
 - TopicCluster: group of semantically similar messages
 - Issue: operationally meaningful topic prepared for decision-makers
@@ -79,16 +91,20 @@ Do not invent synonyms for these entities in code.
 ## Boundaries of responsibility
 
 ### Ingestion
-Responsible only for fetching and raw persistence.
+Responsible for source fetch, validation, publish into raw Kafka, and raw persistence.
+Raw persistence consumers must write to `raw_messages` only.
 Must not contain ML logic.
+Must not execute preprocessing stages inline unless that change is approved as an explicit architecture decision.
 
 ### Preprocessing
-Responsible for text normalization, cleaning, deduplication, and enrichment.
+Responsible for structural normalization, language detection, content filtering, cleaning, deduplication, geo enrichment, and metadata enrichment.
+Preprocessing runs in a separate worker/service and must not be coupled to the raw persistence consumer.
 Must not perform final ranking or summarization.
 
 ### ML
 Responsible for embeddings, clustering, optional classification, and summaries.
 Must not fetch source data directly.
+Must not own deterministic deduplication or metadata enrichment rules.
 
 ### Ranking
 Responsible for deterministic prioritization of issues.
@@ -104,14 +120,17 @@ Must not contain business scoring logic.
 
 All internal messages must preserve these minimum fields:
 
-- message_id
+- doc_id
+- raw_message_id
 - source_type
 - source_id
 - author_id
 - text
 - normalized_text
-- created_at_utc
+- created_at
+- collected_at
 - language
+- filter_status
 - region_id
 - municipality_id (nullable)
 - geo_confidence
@@ -121,11 +140,11 @@ All internal messages must preserve these minimum fields:
 - media_type
 - duplicate_group_id (nullable)
 - near_duplicate_flag
-- embedding_version
-- pipeline_version
+- metadata_version
 
 Never remove these fields silently.
 Never rename them without updating contracts and downstream consumers.
+`raw_message_id` is the required linkage between `normalized_messages` and `raw_messages`.
 
 ---
 
@@ -227,7 +246,10 @@ Agents must not:
 - replace deterministic scoring with subjective LLM scoring,
 - change Kafka/Postgres schemas without migration notes,
 - remove audit fields,
-- treat duplicates as deletable noise if they carry scale signal.
+- treat duplicates as deletable noise if they carry scale signal,
+- implement preprocessing by polling `raw_messages` if the canonical input is Kafka `raw.documents`,
+- write new production-path records into legacy `raw_documents` or `normalized_documents`,
+- merge raw persistence and preprocessing into one service without an explicit ADR.
 
 ---
 

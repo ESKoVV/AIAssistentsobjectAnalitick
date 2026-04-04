@@ -1,18 +1,17 @@
 from datetime import datetime, timezone
 
 from raw_to_ml_bridge import build_ml_payload
-from schema import RawDocument
+from schema import RawMessage
 
 
-def test_build_ml_payload_uses_raw_fields_and_none_for_missing_normalized() -> None:
-    raw_document = RawDocument(
+def test_build_ml_payload_uses_raw_message_fields_and_none_for_missing_normalized() -> None:
+    raw_message = RawMessage(
         source_type="vk_post",
         source_id="123",
-        parent_source_id=None,
-        text_raw="Сломался светофор на перекрестке",
-        author_raw="42",
+        author_id="42",
+        text="Сломался светофор на перекрестке",
         media_type="text",
-        created_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
+        created_at_utc=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         collected_at=datetime(2026, 4, 4, 12, 5, tzinfo=timezone.utc),
         reach=100,
         likes=5,
@@ -21,10 +20,10 @@ def test_build_ml_payload_uses_raw_fields_and_none_for_missing_normalized() -> N
         raw_payload={"media_type": "text"},
     )
 
-    payload = build_ml_payload(raw_document)
+    payload = build_ml_payload(raw_message)
 
     assert payload["doc_id"] == "vk_post:123"
-    assert payload["text"] == raw_document.text_raw
+    assert payload["text"] == raw_message.text
     assert payload["normalized_text"] is None
     assert payload["language"] is None
     assert payload["reach"] == 100
@@ -33,19 +32,18 @@ def test_build_ml_payload_uses_raw_fields_and_none_for_missing_normalized() -> N
 
 
 def test_build_ml_payload_keeps_empty_text_if_text_empty() -> None:
-    raw_document = RawDocument(
+    raw_message = RawMessage(
         source_type="rss_article",
         source_id="abc",
-        parent_source_id=None,
-        text_raw=" ",
-        author_raw=None,
+        author_id=None,
+        text=" ",
         media_type=None,
-        created_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
+        created_at_utc=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         collected_at=datetime(2026, 4, 4, 12, 5, tzinfo=timezone.utc),
         raw_payload={},
     )
 
-    payload = build_ml_payload(raw_document)
+    payload = build_ml_payload(raw_message)
 
     assert payload["text"] == ""
     assert payload["reach"] == 0

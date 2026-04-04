@@ -61,7 +61,7 @@ class APIConfig:
     port: int = 8000
     config_path: str = DEFAULT_CONFIG_PATH
     redis_dsn: str | None = None
-    documents_table: str = "normalized_documents"
+    documents_table: str = "normalized_messages"
     cache_ttl_seconds: int = 300
     freshness_threshold_minutes: int = 30
     kafka_bootstrap_servers: str | None = None
@@ -101,7 +101,7 @@ class APIConfig:
             redis_dsn=os.getenv("API_REDIS_DSN", payload.get("redis_dsn")) or None,
             documents_table=(
                 os.getenv("API_DOCUMENTS_TABLE")
-                or str(payload.get("documents_table", "normalized_documents"))
+                or str(payload.get("documents_table", "normalized_messages"))
             ),
             cache_ttl_seconds=int(
                 os.getenv("API_CACHE_TTL_SECONDS", payload.get("cache_ttl_seconds", 300)),

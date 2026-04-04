@@ -8,7 +8,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from pydantic import ValidationError
 
 from config import load_config
-from schema import RawDocument
+from schema import RawMessage
 
 CONFIG = load_config()
 
@@ -45,10 +45,9 @@ def _safe_int(value: Any) -> int | None:
     return None
 
 
-def build_ml_payload(document: RawDocument) -> dict[str, Any]:
-    text = (document.text_raw or "").strip()
-
-    doc_id = document.doc_id or f"{document.source_type}:{document.source_id}"
+def build_ml_payload(message: RawMessage) -> dict[str, Any]:
+    text = (message.text or "").strip()
+    doc_id = f"{message.source_type.value}:{message.source_id}"
 
     return {
         "doc_id": doc_id,
@@ -58,22 +57,22 @@ def build_ml_payload(document: RawDocument) -> dict[str, Any]:
         "region_id": None,
         "municipality_id": None,
         "geo_confidence": None,
-        "reach": document.reach,
+        "reach": message.reach,
         "engagement": {
-            "likes": document.likes,
-            "reposts": document.reposts,
-            "comments_count": document.comments_count,
+            "likes": message.likes,
+            "reposts": message.reposts,
+            "comments_count": message.comments_count,
         },
-        "is_official": document.is_official,
-        "media_type": document.media_type,
-        "created_at_utc": document.created_at.isoformat(),
+        "is_official": message.is_official,
+        "media_type": message.media_type.value if message.media_type else None,
+        "created_at_utc": message.created_at_utc.isoformat(),
         "pipeline_version": "raw-to-ml-bridge-v1",
         "raw_equivalents": {
-            "text_raw": document.text_raw,
-            "author_raw": document.author_raw,
-            "source_type": document.source_type,
-            "source_id": document.source_id,
-            "parent_source_id": document.parent_source_id,
+            "text_raw": message.text,
+            "author_raw": message.author_id,
+            "source_type": message.source_type.value,
+            "source_id": message.source_id,
+            "parent_source_id": message.parent_id,
         },
     }
 
@@ -103,7 +102,7 @@ def main() -> None:
             raw_data = message.value
 
             try:
-                raw_document = RawDocument.model_validate(raw_data)
+                raw_message = RawMessage.model_validate(raw_data)
             except ValidationError as exc:
                 print(f"❌ Ошибка валидации raw-сообщения offset={message.offset}: {exc}")
                 save_failed_message(raw_data, f"validation_error: {exc}")
@@ -111,15 +110,15 @@ def main() -> None:
                 continue
 
             try:
-                ml_payload = build_ml_payload(raw_document)
+                ml_payload = build_ml_payload(raw_message)
                 producer.send(CONFIG.kafka_ml_topic, ml_payload).get(timeout=30)
                 producer.flush()
                 consumer.commit()
-                print(f"✅ Отправлен документ в ML topic: {raw_document.source_type}:{raw_document.source_id}")
+                print(f"✅ Отправлен документ в ML topic: {raw_message.source_type.value}:{raw_message.source_id}")
             except Exception as exc:
                 print(
                     "❌ Ошибка отправки в ML topic "
-                    f"offset={message.offset}, source_id={raw_document.source_id}: {exc}"
+                    f"offset={message.offset}, source_id={raw_message.source_id}: {exc}"
                 )
                 save_failed_message(raw_data, str(exc))
 

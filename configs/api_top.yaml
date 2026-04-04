@@ -1,7 +1,7 @@
 host: 0.0.0.0
 port: 8000
 api_version: v1
-documents_table: normalized_documents
+documents_table: normalized_messages
 cache_ttl_seconds: 300
 freshness_threshold_minutes: 30
 rankings_updated_topic: rankings.updated

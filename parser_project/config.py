@@ -28,6 +28,7 @@ class AppConfig:
     kafka_ml_topic: str
     kafka_ml_results_topic: str
     kafka_group_id: str
+    kafka_preprocessing_group_id: str
     failed_messages_path: Path
 
     database_url: str | None
@@ -132,6 +133,13 @@ def load_config() -> AppConfig:
         kafka_ml_topic=_text_env("KAFKA_ML_TOPIC", "ml.documents") or "ml.documents",
         kafka_ml_results_topic=_text_env("KAFKA_ML_RESULTS_TOPIC", "ml.results") or "ml.results",
         kafka_group_id=_text_env("KAFKA_GROUP_ID", "documents-consumer-group") or "documents-consumer-group",
+        kafka_preprocessing_group_id=(
+            _text_env(
+                "KAFKA_PREPROCESSING_GROUP_ID",
+                f"{_text_env('KAFKA_GROUP_ID', 'documents-consumer-group') or 'documents-consumer-group'}-preprocessing",
+            )
+            or f"{_text_env('KAFKA_GROUP_ID', 'documents-consumer-group') or 'documents-consumer-group'}-preprocessing"
+        ),
         failed_messages_path=Path(_text_env("FAILED_MESSAGES_PATH", "failed_messages.jsonl") or "failed_messages.jsonl"),
         database_url=_text_env("DATABASE_URL"),
         sources_config_path=Path(
@@ -209,6 +217,23 @@ def validate_max_config(config: AppConfig) -> None:
 
 
 def validate_consumer_config(config: AppConfig) -> None:
+    validate_preprocessing_consumer_config(config)
+
+
+def validate_raw_consumer_config(config: AppConfig) -> None:
+    missing: list[str] = []
+    if not config.kafka_bootstrap_servers:
+        missing.append("KAFKA_BOOTSTRAP_SERVERS")
+    if not config.kafka_raw_topic:
+        missing.append("KAFKA_RAW_TOPIC")
+    if not config.kafka_group_id:
+        missing.append("KAFKA_GROUP_ID")
+    if not config.database_url:
+        missing.append("DATABASE_URL")
+    _raise_missing("raw consumer", missing)
+
+
+def validate_preprocessing_consumer_config(config: AppConfig) -> None:
     missing: list[str] = []
     if not config.kafka_bootstrap_servers:
         missing.append("KAFKA_BOOTSTRAP_SERVERS")
@@ -216,13 +241,13 @@ def validate_consumer_config(config: AppConfig) -> None:
         missing.append("KAFKA_RAW_TOPIC")
     if not config.kafka_preprocessed_topic:
         missing.append("KAFKA_PREPROCESSED_TOPIC")
-    if not config.kafka_group_id:
-        missing.append("KAFKA_GROUP_ID")
+    if not config.kafka_preprocessing_group_id:
+        missing.append("KAFKA_PREPROCESSING_GROUP_ID")
     if not config.database_url:
         missing.append("DATABASE_URL")
     if not str(config.sources_config_path).strip():
         missing.append("SOURCES_CONFIG_PATH")
-    _raise_missing("consumer", missing)
+    _raise_missing("preprocessing consumer", missing)
 
 
 def validate_db_config(config: AppConfig) -> None:
