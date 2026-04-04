@@ -1,9 +1,29 @@
+import os
+
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import TopicAlreadyExistsError
 
 from config import load_config
 
 CONFIG = load_config()
+RAW_TOPIC_PARTITIONS = int(os.getenv("KAFKA_RAW_TOPIC_PARTITIONS", "3"))
+DEFAULT_TOPIC_REPLICATION_FACTOR = int(os.getenv("KAFKA_TOPIC_REPLICATION_FACTOR", "2"))
+
+
+def _broker_count(bootstrap_servers: str) -> int:
+    brokers = [item.strip() for item in bootstrap_servers.split(",") if item.strip()]
+    return max(1, len(brokers))
+
+
+def _topic_params(topic_name: str, broker_count: int) -> tuple[int, int]:
+    if topic_name == CONFIG.kafka_raw_topic:
+        partitions = max(3, RAW_TOPIC_PARTITIONS)
+        target_replication = 3 if broker_count >= 3 else DEFAULT_TOPIC_REPLICATION_FACTOR
+        replication = max(1, min(target_replication, broker_count))
+        return partitions, replication
+
+    replication = max(1, min(DEFAULT_TOPIC_REPLICATION_FACTOR, broker_count))
+    return 1, replication
 
 
 def main():
@@ -11,6 +31,7 @@ def main():
         bootstrap_servers=CONFIG.kafka_bootstrap_servers,
         client_id="topic-creator",
     )
+    broker_count = _broker_count(CONFIG.kafka_bootstrap_servers)
 
     topics_to_create = [
         CONFIG.kafka_raw_topic,
@@ -26,10 +47,11 @@ def main():
 
     try:
         for topic_name in unique_topics:
+            partitions, replication = _topic_params(topic_name, broker_count)
             topic = NewTopic(
                 name=topic_name,
-                num_partitions=1,
-                replication_factor=1,
+                num_partitions=partitions,
+                replication_factor=replication,
             )
             try:
                 admin_client.create_topics(new_topics=[topic], validate_only=False)
