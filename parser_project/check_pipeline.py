@@ -1,18 +1,17 @@
 from __future__ import annotations
 
+import json
+import time
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import psycopg
+from kafka import KafkaConsumer, KafkaProducer
 
-from config import load_config, validate_db_config
-
-
-REQUIRED_TABLES = (
-    "normalized_documents",
-    "document_fingerprints",
-    "ml_results",
-)
-REQUIRED_VIEW = "documents_with_ml"
+from config import load_config, validate_consumer_config, validate_db_config
+from db import upsert_raw_document
+from schema import RawDocument
 
 
 def _ok(message: str) -> None:
@@ -28,7 +27,7 @@ def _fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def _exists(conn: psycopg.Connection[Any], object_type: str, object_name: str) -> bool:
+def _exists(conn: psycopg.Connection[Any], table_name: str) -> bool:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -36,62 +35,79 @@ def _exists(conn: psycopg.Connection[Any], object_type: str, object_name: str) -
                 SELECT 1
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_type = %s
                   AND table_name = %s
             );
             """,
-            (object_type, object_name),
+            (table_name,),
         )
         return bool(cur.fetchone()[0])
 
 
-def _check_required_objects(conn: psycopg.Connection[Any]) -> None:
-    missing_tables = [table for table in REQUIRED_TABLES if not _exists(conn, "BASE TABLE", table)]
-    if missing_tables:
-        _fail(
-            "Отсутствуют обязательные таблицы: "
-            + ", ".join(missing_tables)
-            + ". Проверьте миграции и этапы ingestion/ml."
-        )
-
-    if not _exists(conn, "VIEW", REQUIRED_VIEW):
-        _fail(
-            f"Отсутствует обязательное представление {REQUIRED_VIEW}. "
-            "Проверьте SQL-миграции для витрины с ML-результатами."
-        )
-
-    _ok("Все обязательные таблицы и представление найдены")
-
-
-def _count_rows(conn: psycopg.Connection[Any], table_name: str) -> int:
+def _count_raw_documents(conn: psycopg.Connection[Any]) -> int:
     with conn.cursor() as cur:
-        cur.execute(f"SELECT COUNT(*) FROM {table_name};")
+        cur.execute("SELECT COUNT(*) FROM raw_documents;")
         return int(cur.fetchone()[0])
 
 
-def _fetch_latest_documents_with_ml(conn: psycopg.Connection[Any], limit: int = 5) -> list[dict[str, Any]]:
-    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-        cur.execute(
-            """
-            SELECT *
-            FROM documents_with_ml
-            ORDER BY created_at DESC NULLS LAST
-            LIMIT %s;
-            """,
-            (limit,),
-        )
-        return list(cur.fetchall())
+def _build_raw_message() -> dict[str, Any]:
+    unique_source_id = f"smoke-{uuid.uuid4().hex}"
+    now = datetime.now(timezone.utc)
+    return {
+        "doc_id": f"rss_article:{unique_source_id}",
+        "source_type": "rss_article",
+        "source_id": unique_source_id,
+        "parent_source_id": None,
+        "text_raw": "Smoke raw ingestion message",
+        "title_raw": "Smoke check",
+        "author_raw": "pipeline-check",
+        "created_at_raw": now.isoformat(),
+        "created_at": now.isoformat(),
+        "collected_at": now.isoformat(),
+        "source_url": "https://example.com/smoke",
+        "source_domain": "example.com",
+        "region_hint_raw": "test-region",
+        "geo_raw": None,
+        "engagement_raw": {"likes": 0, "comments": 0, "reposts": 0, "views": 1},
+        "raw_payload": {"smoke": True},
+    }
 
 
-def _print_documents(rows: list[dict[str, Any]]) -> None:
-    print("\n[INFO] Последние 5 записей из documents_with_ml:")
-    if not rows:
-        print("  - данных пока нет")
-        return
+def _produce_raw_message(config, raw_message: dict[str, Any]) -> None:
+    producer = KafkaProducer(
+        bootstrap_servers=config.kafka_bootstrap_servers,
+        acks="all",
+        value_serializer=lambda value: json.dumps(value, ensure_ascii=False, default=str).encode("utf-8"),
+    )
+    producer.send(config.kafka_raw_topic, raw_message).get(timeout=30)
+    producer.flush()
+    producer.close()
 
-    for index, row in enumerate(rows, start=1):
-        rendered = ", ".join(f"{key}={value!r}" for key, value in row.items())
-        print(f"  {index}. {rendered}")
+
+def _consume_one_raw_message(config, expected_doc_id: str) -> RawDocument:
+    consumer = KafkaConsumer(
+        config.kafka_raw_topic,
+        bootstrap_servers=config.kafka_bootstrap_servers,
+        auto_offset_reset="earliest",
+        enable_auto_commit=False,
+        group_id=f"{config.kafka_group_id}-smoke-{uuid.uuid4().hex[:8]}",
+        value_deserializer=lambda msg: json.loads(msg.decode("utf-8")),
+    )
+
+    deadline = time.time() + 30
+    try:
+        while time.time() < deadline:
+            records = consumer.poll(timeout_ms=2000)
+            for _tp, batch in records.items():
+                for record in batch:
+                    raw_data = record.value
+                    if raw_data.get("doc_id") != expected_doc_id:
+                        continue
+                    document = RawDocument.model_validate(raw_data)
+                    consumer.commit()
+                    return document
+        raise TimeoutError(f"Не удалось прочитать сообщение doc_id={expected_doc_id} из Kafka")
+    finally:
+        consumer.close()
 
 
 def main() -> None:
@@ -99,27 +115,41 @@ def main() -> None:
 
     try:
         validate_db_config(config)
+        validate_consumer_config(config)
     except Exception as error:  # noqa: BLE001
         _fail(f"Ошибка конфигурации: {error}")
 
+    raw_message = _build_raw_message()
+
     try:
         with psycopg.connect(config.database_url) as conn:
-            _ok("Подключение к PostgreSQL установлено")
-            _check_required_objects(conn)
+            if not _exists(conn, "raw_documents"):
+                _fail("Отсутствует таблица raw_documents. Проверьте миграцию 005_create_raw_documents.sql")
 
-            normalized_count = _count_rows(conn, "normalized_documents")
-            ml_results_count = _count_rows(conn, "ml_results")
+            before_count = _count_raw_documents(conn)
+            _info(f"raw_documents до smoke-check: {before_count}")
 
-            _info(f"Количество записей в normalized_documents: {normalized_count}")
-            _info(f"Количество записей в ml_results: {ml_results_count}")
+            _produce_raw_message(config, raw_message)
+            _ok(f"Producer отправил raw сообщение doc_id={raw_message['doc_id']}")
 
-            latest_rows = _fetch_latest_documents_with_ml(conn, limit=5)
-            _print_documents(latest_rows)
+            consumed_doc = _consume_one_raw_message(config, expected_doc_id=raw_message["doc_id"])
+            _ok(f"Consumer прочитал raw сообщение doc_id={consumed_doc.doc_id}")
+
+            upsert_raw_document(consumed_doc)
+            _ok(f"Upsert в raw_documents выполнен doc_id={consumed_doc.doc_id}")
+
+            after_count = _count_raw_documents(conn)
+            _info(f"raw_documents после smoke-check: {after_count}")
+
+            if after_count <= before_count:
+                _fail("raw_documents не пополнилась после raw smoke-check")
+
+            _ok("Raw smoke-check успешен: producer -> consumer -> raw_documents")
 
     except SystemExit:
         raise
     except Exception as error:  # noqa: BLE001
-        _fail(f"Ошибка smoke-check pipeline: {error}")
+        _fail(f"Ошибка raw smoke-check pipeline: {error}")
 
 
 if __name__ == "__main__":
