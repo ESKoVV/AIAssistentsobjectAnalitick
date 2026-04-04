@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from kafka import KafkaConsumer
 from pydantic import ValidationError
@@ -17,7 +17,7 @@ def save_failed_message(raw_message: dict, error: str) -> None:
         handle.write(
             json.dumps(
                 {
-                    "failed_at": datetime.now(UTC).isoformat(),
+                    "failed_at": datetime.now(timezone.utc).isoformat(),
                     "error": error,
                     "message": raw_message,
                 },

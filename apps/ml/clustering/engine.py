@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import time
 from collections import defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable, Sequence
 from uuid import uuid4
 
@@ -29,7 +29,7 @@ def cluster_documents(
     clusterer_factory: Callable[[ClusteringParams], object] | None = None,
     cluster_id_factory: Callable[[], str] | None = None,
 ) -> tuple[list[Cluster], object, list[int]]:
-    created_at = created_at or datetime.now(UTC)
+    created_at = created_at or datetime.now(timezone.utc)
     cluster_id_factory = cluster_id_factory or (lambda: str(uuid4()))
 
     if not documents:

@@ -4,7 +4,7 @@ import math
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Sequence
 from uuid import uuid4
 
@@ -356,7 +356,7 @@ class RankingService:
         period_hours: int | None = None,
         mode: str = "descriptions_updated",
     ) -> RankingComputationResult:
-        computed_at = now or datetime.now(UTC)
+        computed_at = now or datetime.now(timezone.utc)
         window_hours = period_hours or max(self._config.snapshot_period_hours)
         return self._refresh_single_window(
             computed_at=computed_at,
@@ -370,7 +370,7 @@ class RankingService:
         now: datetime | None = None,
         mode: str = "descriptions_updated",
     ) -> tuple[RankingComputationResult, ...]:
-        computed_at = now or datetime.now(UTC)
+        computed_at = now or datetime.now(timezone.utc)
         return tuple(
             self._refresh_single_window(
                 computed_at=computed_at,
@@ -635,7 +635,7 @@ def _build_timeline(
 
 
 def _floor_to_hour(value: datetime) -> datetime:
-    return value.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+    return value.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 
 def _preview_text(text: str) -> str:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,7 +16,7 @@ from tests.helpers import build_cluster, build_ranked_cluster, build_stored_clus
 
 
 def test_service_ranks_clusters_and_tracks_exclusions() -> None:
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     repository = InMemoryRankingRepository()
 
     cluster_1 = build_cluster(
@@ -115,7 +115,7 @@ def test_explain_rank_mentions_reasons_and_main_factors() -> None:
 
 
 def test_quality_weight_downweights_cluster_aggregation() -> None:
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     repository = InMemoryRankingRepository()
     low_weight_cluster = build_cluster(
         cluster_id="cluster-low",

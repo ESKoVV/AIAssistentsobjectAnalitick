@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -41,7 +41,7 @@ class FakePublisher(NullClusterEventPublisher):
 
 def test_full_recompute_reads_documents_persists_clusters_snapshot_and_event() -> None:
     repository = InMemoryClusteringRepository()
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     repository.documents = {
         "a1": build_cluster_document_record(doc_id="a1", embedding=[1.0, 0.0], created_at=now - timedelta(hours=1)),
         "a2": build_cluster_document_record(doc_id="a2", embedding=[0.98, 0.02], created_at=now - timedelta(hours=2)),
@@ -75,7 +75,7 @@ def test_full_recompute_reads_documents_persists_clusters_snapshot_and_event() -
 
 def test_second_full_recompute_reuses_cluster_id_for_similar_cluster_and_creates_new_one() -> None:
     repository = InMemoryClusteringRepository()
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     repository.documents = {
         "a1": build_cluster_document_record(doc_id="a1", embedding=[1.0, 0.0], created_at=now - timedelta(hours=1)),
         "a2": build_cluster_document_record(doc_id="a2", embedding=[0.99, 0.01], created_at=now - timedelta(hours=2)),
@@ -123,7 +123,7 @@ def test_second_full_recompute_reuses_cluster_id_for_similar_cluster_and_creates
 
 def test_online_cycle_assigns_strong_matches_updates_clusters_and_buffers_weak_ones() -> None:
     repository = InMemoryClusteringRepository()
-    now = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    now = datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
     repository.documents = {
         "a1": build_cluster_document_record(doc_id="a1", embedding=[1.0, 0.0], created_at=now - timedelta(hours=1)),
         "a2": build_cluster_document_record(doc_id="a2", embedding=[0.98, 0.02], created_at=now - timedelta(hours=2)),

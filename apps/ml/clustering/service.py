@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Sequence
 from uuid import uuid4
 
@@ -56,7 +56,7 @@ class ClusteringService:
         self._repository.ensure_upstream_dependencies()
 
     def run_full_recompute(self, *, now: datetime | None = None) -> FullRecomputeResult:
-        now = now or datetime.now(UTC)
+        now = now or datetime.now(timezone.utc)
         period_end = now
         period_start = now - timedelta(hours=self._params.full_recompute_window_hours)
         documents = self._repository.fetch_documents_for_window(
@@ -135,7 +135,7 @@ class ClusteringService:
         )
 
     def run_online_cycle(self, *, now: datetime | None = None) -> OnlineAssignmentResult:
-        now = now or datetime.now(UTC)
+        now = now or datetime.now(timezone.utc)
         snapshot = self._repository.load_latest_snapshot()
         if snapshot is None:
             return OnlineAssignmentResult()

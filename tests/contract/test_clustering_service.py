@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from apps.ml.clustering.schema import Cluster, ClustersUpdatedEvent
 from tests.helpers import build_cluster
@@ -45,9 +45,9 @@ def test_cluster_contract_contains_expected_fields() -> None:
 
 def test_clusters_updated_event_contains_only_changed_ids_and_period_info() -> None:
     event = ClustersUpdatedEvent(
-        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
-        period_start=datetime(2026, 4, 1, 12, 0, tzinfo=UTC),
-        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        run_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
+        period_start=datetime(2026, 4, 1, 12, 0, tzinfo=timezone.utc),
+        period_end=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         changed_cluster_ids=["cluster-1", "cluster-2"],
     )
 
