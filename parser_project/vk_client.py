@@ -54,3 +54,40 @@ def get_wall_posts(owner_id: int, count: int = 5, offset: int = 0) -> list[dict]
         },
     )
     return response.get("items", [])
+
+
+def get_post_comments(
+    owner_id: int,
+    post_id: int,
+    count: int = 100,
+) -> list[dict]:
+    comments: list[dict] = []
+    offset = 0
+
+    while True:
+        response = vk_api_call(
+            "wall.getComments",
+            {
+                "owner_id": owner_id,
+                "post_id": post_id,
+                "count": count,
+                "offset": offset,
+                "need_likes": 1,
+                "extended": 0,
+                "thread_items_count": 0,
+            },
+        )
+
+        items = response.get("items", [])
+        total = response.get("count", 0)
+
+        comments.extend(items)
+
+        if not items:
+            break
+
+        offset += len(items)
+        if offset >= total:
+            break
+
+    return comments
