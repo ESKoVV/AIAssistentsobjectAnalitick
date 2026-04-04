@@ -1,7 +1,7 @@
 import os
 
 from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import TopicAlreadyExistsError
+from kafka.errors import NoBrokersAvailable, TopicAlreadyExistsError
 
 from config import load_config
 
@@ -27,10 +27,18 @@ def _topic_params(topic_name: str, broker_count: int) -> tuple[int, int]:
 
 
 def main():
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=CONFIG.kafka_bootstrap_servers,
-        client_id="topic-creator",
-    )
+    try:
+        admin_client = KafkaAdminClient(
+            bootstrap_servers=CONFIG.kafka_bootstrap_servers,
+            client_id="topic-creator",
+        )
+    except NoBrokersAvailable as exc:
+        raise RuntimeError(
+            "Kafka broker недоступен для create_topic.py. "
+            "Проверь KAFKA_BOOTSTRAP_SERVERS "
+            f"(сейчас: {CONFIG.kafka_bootstrap_servers!r}) "
+            "и убедись, что контейнер kafka запущен."
+        ) from exc
     broker_count = _broker_count(CONFIG.kafka_bootstrap_servers)
 
     topics_to_create = [
