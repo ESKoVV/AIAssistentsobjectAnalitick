@@ -16,4 +16,4 @@ with psycopg.connect(CONFIG.database_url) as conn:
             cur.execute(sql_file.read_text(encoding="utf-8"))
     conn.commit()
 
-print("✅ SQL-схема применена: parser_project/sql/001..003")
+print("✅ SQL-схема применена: parser_project/sql/*.sql")
