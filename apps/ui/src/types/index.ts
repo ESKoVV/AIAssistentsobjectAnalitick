@@ -3,6 +3,8 @@ export type SourceType =
   | 'vk_comment'
   | 'telegram_post'
   | 'telegram_comment'
+  | 'max_post'
+  | 'max_comment'
   | 'rss_article'
   | 'portal_appeal';
 

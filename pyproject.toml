@@ -23,6 +23,10 @@ embeddings = [
     "torch>=2.3.0",
     "transformers>=4.41.0",
 ]
+summarization = [
+    "aiokafka>=0.10.0",
+    "psycopg[binary]>=3.2.0",
+]
 dev = [
     "pytest>=9.0.0",
 ]

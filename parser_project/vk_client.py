@@ -1,17 +1,12 @@
-import os
-
 import httpx
-from dotenv import load_dotenv
+from config import ConfigError, load_config
 
-load_dotenv()
-
-VK_TOKEN = os.getenv("VK_TOKEN")
-VK_API_VERSION = os.getenv("VK_API_VERSION", "5.131")
+CONFIG = load_config()
 
 
 def vk_api_call(method: str, params: dict) -> dict:
-    if not VK_TOKEN:
-        raise ValueError("Не найден VK_TOKEN в .env")
+    if not CONFIG.vk_token:
+        raise ConfigError("Не найден VK_TOKEN. Добавьте переменную в .env.")
 
     url = f"https://api.vk.com/method/{method}"
 
@@ -19,8 +14,8 @@ def vk_api_call(method: str, params: dict) -> dict:
         url,
         params={
             **params,
-            "access_token": VK_TOKEN,
-            "v": VK_API_VERSION,
+            "access_token": CONFIG.vk_token,
+            "v": CONFIG.vk_api_version,
         },
         timeout=30.0,
     )

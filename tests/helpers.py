@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import UTC, datetime
+from pathlib import Path
 
 from apps.ml.embeddings.schema import EmbeddedDocument
 from apps.ml.clustering.schema import Cluster, ClusterDocumentRecord
+from apps.ml.summarization.schema import ClusterDescription, StoredClusterDescription, SummarizationDocumentRecord
 from apps.preprocessing.enrichment import EnrichedDocument
 from apps.preprocessing.filtering.schema import FilterStatus
 from apps.preprocessing.normalization import MediaType, SourceType
@@ -140,3 +142,137 @@ def build_cluster(
         cohesion_score=cohesion_score,
         algorithm_params=algorithm_params or {"min_cluster_size": 10},
     )
+
+
+def build_summarization_document_record(
+    *,
+    doc_id: str = "doc-1",
+    author_id: str = "author-1",
+    source_type: SourceType = SourceType.VK_POST,
+    text: str = "Во дворе снова нет горячей воды и жители обсуждают сроки восстановления подачи.",
+    created_at: datetime | None = None,
+    region: str | None = "volgograd-oblast",
+    embedding: list[float] | None = None,
+) -> SummarizationDocumentRecord:
+    return SummarizationDocumentRecord(
+        doc_id=doc_id,
+        author_id=author_id,
+        source_type=source_type,
+        text=text,
+        created_at=created_at or datetime(2026, 4, 4, 9, 0, tzinfo=UTC),
+        region=region,
+        embedding=embedding or [1.0, 0.0],
+    )
+
+
+def build_cluster_description(
+    *,
+    cluster_id: str = "cluster-1",
+    summary: str = (
+        "Жители обсуждают перебои с горячей водой в жилых домах и сроки восстановления подачи. "
+        "В сообщениях упоминаются адреса домов и ожидание завершения ремонтных работ."
+    ),
+    key_phrases: list[str] | None = None,
+    sample_doc_ids: list[str] | None = None,
+    model_name: str = "gpt-4o",
+    prompt_version: str = "prompt-hash",
+    generated_at: datetime | None = None,
+    input_token_count: int = 120,
+    output_token_count: int = 48,
+    generation_time_ms: int = 850,
+    fallback_used: bool = False,
+) -> ClusterDescription:
+    return ClusterDescription(
+        cluster_id=cluster_id,
+        summary=summary,
+        key_phrases=key_phrases
+        or [
+            "нет горячей воды",
+            "сроки восстановления подачи",
+            "ремонтные работы",
+            "жители обсуждают адреса домов",
+            "ожидание завершения работ",
+        ],
+        sample_doc_ids=sample_doc_ids or ["doc-1", "doc-2", "doc-3"],
+        model_name=model_name,
+        prompt_version=prompt_version,
+        generated_at=generated_at or datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        input_token_count=input_token_count,
+        output_token_count=output_token_count,
+        generation_time_ms=generation_time_ms,
+        fallback_used=fallback_used,
+    )
+
+
+def build_stored_cluster_description(
+    *,
+    cluster_id: str = "cluster-1",
+    needs_review: bool = False,
+    cluster_size_at_generation: int = 10,
+    prompt_version: str = "prompt-hash",
+    generated_at: datetime | None = None,
+) -> StoredClusterDescription:
+    return StoredClusterDescription(
+        description=build_cluster_description(
+            cluster_id=cluster_id,
+            prompt_version=prompt_version,
+            generated_at=generated_at,
+        ),
+        needs_review=needs_review,
+        cluster_size_at_generation=cluster_size_at_generation,
+    )
+
+
+def write_summarization_prompt(
+    path: Path,
+    *,
+    system_prompt: str = "Сформируй нейтральное описание по текстам.",
+    user_prompt_template: str = (
+        "Размер: {size}\n"
+        "Период: {period_start} - {period_end}\n"
+        "Источники: {source_types}\n"
+        "Регионы: {geo_regions}\n"
+        "{texts}\n"
+        "ОПИСАНИЕ и ФРАЗЫ обязательны."
+    ),
+) -> Path:
+    path.write_text(
+        "\n".join(
+            [
+                "# Prompt",
+                "",
+                "## Task Goal",
+                "Сформировать описание темы кластера.",
+                "",
+                "## Allowed Input Fields",
+                "- size",
+                "- period",
+                "- source_types",
+                "- geo_regions",
+                "- texts",
+                "",
+                "## Forbidden Behavior",
+                "- Не придумывать факты",
+                "",
+                "## Output Schema",
+                "- ОПИСАНИЕ",
+                "- ФРАЗЫ",
+                "",
+                "## Tone Constraints",
+                "- Нейтральный стиль",
+                "",
+                "## System Prompt",
+                "```text",
+                system_prompt,
+                "```",
+                "",
+                "## User Prompt Template",
+                "```text",
+                user_prompt_template,
+                "```",
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    return path

@@ -7,6 +7,8 @@ const iconBySource: Record<SourceType, JSX.Element> = {
   vk_comment: <MessageSquare size={14} />,
   telegram_post: <Send size={14} />,
   telegram_comment: <Send size={14} />,
+  max_post: <MessageSquare size={14} />,
+  max_comment: <MessageSquare size={14} />,
   rss_article: <Rss size={14} />,
   portal_appeal: <Globe size={14} />
 };

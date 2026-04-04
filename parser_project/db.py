@@ -1,6 +1,5 @@
 import hashlib
 import json
-import os
 import re
 import uuid
 from contextlib import contextmanager
@@ -8,16 +7,12 @@ from difflib import SequenceMatcher
 from typing import Generator, Optional, Protocol
 
 import psycopg
-from dotenv import load_dotenv
 
+from config import load_config, validate_db_config
 from schema import NormalizedDocument
 
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL is not set. Add it to .env before running consumer.")
+CONFIG = load_config()
+validate_db_config(CONFIG)
 
 
 class DuplicateCandidate(Protocol):
@@ -123,7 +118,7 @@ DEDUPLICATION_STRATEGY: DeduplicationStrategy = FingerprintSimilarityDeduplicato
 
 @contextmanager
 def get_connection() -> Generator[psycopg.Connection, None, None]:
-    conn = psycopg.connect(DATABASE_URL)
+    conn = psycopg.connect(CONFIG.database_url)
     try:
         yield conn
         conn.commit()
