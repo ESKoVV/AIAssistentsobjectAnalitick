@@ -9,7 +9,7 @@ from typing import Generator, Optional, Protocol
 import psycopg
 
 from config import load_config, validate_db_config
-from schema import NormalizedDocument
+from schema import NormalizedDocument, RawDocument
 
 CONFIG = load_config()
 validate_db_config(CONFIG)
@@ -296,6 +296,72 @@ def upsert_document(document: NormalizedDocument) -> None:
         with conn.cursor() as cur:
             cur.execute(query, payload)
             _upsert_document_fingerprint(cur, document)
+
+
+def upsert_raw_document(document: RawDocument) -> None:
+    query = """
+    INSERT INTO raw_documents (
+        doc_id,
+        source_type,
+        source_id,
+        parent_source_id,
+        text_raw,
+        title_raw,
+        author_raw,
+        created_at_raw,
+        created_at,
+        collected_at,
+        source_url,
+        source_domain,
+        region_hint_raw,
+        geo_raw,
+        engagement_raw,
+        raw_payload
+    ) VALUES (
+        %(doc_id)s,
+        %(source_type)s,
+        %(source_id)s,
+        %(parent_source_id)s,
+        %(text_raw)s,
+        %(title_raw)s,
+        %(author_raw)s,
+        %(created_at_raw)s,
+        %(created_at)s,
+        %(collected_at)s,
+        %(source_url)s,
+        %(source_domain)s,
+        %(region_hint_raw)s,
+        %(geo_raw)s::jsonb,
+        %(engagement_raw)s::jsonb,
+        %(raw_payload)s::jsonb
+    )
+    ON CONFLICT (doc_id) DO UPDATE
+    SET
+        source_type = EXCLUDED.source_type,
+        source_id = EXCLUDED.source_id,
+        parent_source_id = EXCLUDED.parent_source_id,
+        text_raw = EXCLUDED.text_raw,
+        title_raw = EXCLUDED.title_raw,
+        author_raw = EXCLUDED.author_raw,
+        created_at_raw = EXCLUDED.created_at_raw,
+        created_at = EXCLUDED.created_at,
+        collected_at = EXCLUDED.collected_at,
+        source_url = EXCLUDED.source_url,
+        source_domain = EXCLUDED.source_domain,
+        region_hint_raw = EXCLUDED.region_hint_raw,
+        geo_raw = EXCLUDED.geo_raw,
+        engagement_raw = EXCLUDED.engagement_raw,
+        raw_payload = EXCLUDED.raw_payload;
+    """
+
+    payload = document.model_dump(mode="json")
+    payload["geo_raw"] = _serialize_jsonb(payload.get("geo_raw"))
+    payload["engagement_raw"] = _serialize_jsonb(payload.get("engagement_raw"))
+    payload["raw_payload"] = _serialize_jsonb(payload.get("raw_payload"))
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, payload)
 
 
 def _serialize_jsonb(value: Optional[dict]) -> str:
