@@ -1,91 +1,141 @@
-# regional-analytics-assistant
+# AIAssistentsobjectAnalitick
 
-Целевая структура репозитория (как в ТЗ):
+Платформа объективной аналитики региональной повестки на основе публичных сигналов: новости, соцсети, комментарии и обращения граждан.
+
+Проект не про «чат-бота», а про **аудируемый data/ML pipeline** для поддержки решений: от сырых сообщений до объяснимого топа ключевых проблем региона.
+
+---
+
+## 1) Зачем этот проект
+
+Органам управления и аналитическим центрам нужен единый контур, который:
+
+- собирает сигналы из разных источников в реальном времени;
+- нормализует данные в общий контракт;
+- выделяет устойчивые темы/проблемы;
+- генерирует нейтральные сводки без эмоциональной окраски;
+- ранжирует проблемы прозрачной формулой (а не «черным ящиком»);
+- показывает итог в удобном UI и API.
+
+**Ключевая ценность:** объяснимость, трассируемость до первичных сообщений, воспроизводимость.
+
+---
+
+## 2) Что уже есть в репозитории
+
+- Монорепо с разделением по слоям: ingestion, preprocessing, ml, ranking, api, ui.
+- UI-дашборд (`apps/ui`) для обзора ленты, карточек и аналитики.
+- Контракты и тестовые каркасы (`tests/unit`, `tests/integration`, `tests/contract`, `tests/eval`).
+- Конфиги регионов, источников, таксономии и промптов (`configs/`).
+- Инструменты ingestion/нормализации в `parser_project`.
+- Локальный read-only API для выдачи документов из PostgreSQL в UI: `apps/api/public/server.py`.
+
+---
+
+## 3) Архитектурные принципы
+
+1. **Детерминизм > эвристики LLM**, где это возможно.
+2. LLM используется только там, где нужна семантика (summary/labeling и т.п.).
+3. Ранжирование — максимально объяснимое и проверяемое.
+4. Строгие границы ответственности между слоями.
+5. Явные контракты данных между этапами пайплайна.
+
+---
+
+## 4) Канонический pipeline
+
+1. Ingestion
+2. Structural normalization
+3. Language detection
+4. Content filtering
+5. Text cleaning
+6. Deduplication
+7. Geo enrichment
+8. Metadata enrichment
+9. Embedding generation
+10. Semantic clustering
+11. Optional classification
+12. Cluster summarization
+13. Importance ranking
+14. Top-10 issue generation
+15. API/UI delivery
+
+Идея: каждая стадия делает **одну** понятную задачу, без скрытой логики из соседних слоев.
+
+---
+
+## 5) Данные и контракт
+
+Базовая сущность хранения сигналов — `normalized_documents` (PostgreSQL).
+Типичные поля:
+
+- идентификация: `doc_id`, `source_type`, `source_id`, `parent_id`
+- контент: `text`, `media_type`, `raw_payload`
+- время: `created_at`, `collected_at`, `inserted_at`
+- автор/официальность: `author_id`, `is_official`
+- метрики: `reach`, `likes`, `reposts`, `comments_count`
+- гео: `region_hint`, `geo_lat`, `geo_lon`
+
+Именно эта таблица используется как источник данных для ленты в UI.
+
+---
+
+## 6) Структура репозитория
 
 ```text
-regional-analytics-assistant/
-│
-├── AGENT.md
-├── README.md
-├── pyproject.toml
-├── .env.example
-├── docker-compose.yml
-│
-├── configs/
-│   ├── sources.yaml
-│   ├── regions.yaml
-│   ├── taxonomy.yaml
-│   ├── ranking.yaml
-│   └── prompts/
-│       ├── summarization.md
-│       ├── topic_labeling.md
-│       └── relevance_check.md
-│
+.
 ├── apps/
-│   ├── ingestion/
-│   │   ├── rss/
-│   │   ├── telegram/
-│   │   ├── vk/
-│   │   └── portals/
-│   ├── preprocessing/
-│   │   ├── normalization/
-│   │   ├── language/
-│   │   ├── cleaning/
-│   │   ├── deduplication/
-│   │   ├── geo_enrichment/
-│   │   └── enrichment/
-│   ├── ml/
-│   │   ├── embeddings/
-│   │   ├── clustering/
-│   │   ├── classification/
-│   │   ├── summarization/
-│   │   ├── ranking/
-│   │   └── evaluation/
-│   ├── orchestration/
-│   │   ├── consumers/
-│   │   ├── pipelines/
-│   │   └── schedulers/
 │   ├── api/
-│   │   ├── public/
-│   │   ├── internal/
-│   │   └── schemas/
-│   └── ui/
-│
-├── domain/
-│   ├── models/
-│   ├── entities/
-│   ├── value_objects/
-│   └── services/
-│
-├── storage/
-│   ├── postgres/
-│   ├── redis/
-│   └── kafka/
-│
-├── prompts/
-│   ├── system/
-│   ├── task/
-│   └── validators/
-│
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── contract/
-│   └── eval/
-│
-├── docs/
-│   ├── architecture/
-│   ├── data_contracts/
-│   ├── decisions/
-│   ├── runbooks/
-│   └── metrics/
-│
-└── notebooks/
-    ├── exploration/
-    └── experiments/
+│   │   └── public/                # локальный read-only API для UI
+│   └── ui/                        # фронтенд-дашборд (Vite + React + TS)
+├── configs/                       # источники, регионы, таксономия, промпты
+├── docs/                          # архитектура, runbooks, ADR и т.д.
+├── domain/                        # доменные модели/сервисы
+├── parser_project/                # ingestion/normalization утилиты
+├── storage/                       # postgres/kafka/redis артефакты
+└── tests/                         # unit/integration/contract/eval
 ```
 
-## UI запуск
+---
+
+## 7) Локальный запуск
+
+### 7.1 Требования
+
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL 14+
+
+### 7.2 Переменные окружения
+
+Минимально нужно задать:
+
+- `DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME`
+
+Для API (опционально):
+
+- `API_HOST=0.0.0.0`
+- `API_PORT=8000`
+
+Для UI (`apps/ui/.env`):
+
+- `VITE_API_BASE_URL=http://localhost:8000`
+
+### 7.3 Запуск API
+
+```bash
+python apps/api/public/server.py
+```
+
+API поднимется на `http://localhost:8000`.
+
+Доступные read-only endpoint'ы:
+
+- `GET /api/documents?page=1&limit=20&region=...&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
+- `GET /api/documents/{doc_id}`
+- `GET /api/regions`
+
+### 7.4 Запуск UI
 
 ```bash
 cd apps/ui
@@ -93,3 +143,66 @@ npm install
 npm run dev
 ```
 
+Открыть в браузере адрес, который покажет Vite (обычно `http://localhost:5173`).
+
+---
+
+## 8) Что важно про UI
+
+UI ориентирован на аналитический сценарий:
+
+- фильтрация ленты по региону/периоду/тегам;
+- просмотр карточки документа и метрик вовлеченности;
+- работа с источниками (`vk_*`, `telegram_*`, `max_*`, `rss_article`, `portal_appeal`);
+- локальный fallback на mock-данные при отсутствии API.
+
+---
+
+## 9) Тестирование и качество
+
+В репозитории есть каркас тестов разных уровней:
+
+- `tests/unit` — модульная логика;
+- `tests/integration` — связность пайплайна;
+- `tests/contract` — контракты данных;
+- `tests/eval` — quality/eval сценарии.
+
+Рекомендуемый базовый цикл перед merge:
+
+1. Проверка, что API отвечает корректно на фильтры и пагинацию.
+2. Сборка UI (`npm run build`) без ошибок TS.
+3. Валидация контрактов и отсутствие «тихих» schema-breaking изменений.
+
+---
+
+## 10) Дорожная карта (high-level)
+
+- Поднять production-grade API слой (`apps/api`) с версионированием и схемами.
+- Перенести ранжирование в формализованный explainable scoring модуль.
+- Добавить полноценную оркестрацию realtime-контура ingestion → preprocessing → clustering.
+- Расширить observability: freshness, latency, source coverage, drift-метрики.
+
+---
+
+## 11) Нефункциональные требования
+
+- **Объяснимость:** любой issue должен быть расшифрован до первичных сигналов.
+- **Надежность:** graceful degradation при недоступности LLM-компонентов.
+- **Повторяемость:** одинаковый вход → одинаковый результат (где нет семантической генерации).
+- **Безопасность:** API read-only по умолчанию для контура витрины.
+
+---
+
+## 12) Для разработчиков
+
+- Не смешивайте бизнес-правила ранжирования с UI/API слоем.
+- Не прячьте детерминированную логику в LLM-промптах.
+- Любые изменения контрактов данных — только явно и с миграционными заметками.
+- Если меняете архитектурно чувствительную часть, обновляйте `docs/` и тесты контрактов.
+
+---
+
+## 13) Лицензирование и использование
+
+На текущем этапе репозиторий используется как рабочая кодовая база проекта.
+Перед публичным распространением добавьте явную лицензию и политику использования данных.
