@@ -1,0 +1,44 @@
+{
+  "channels": [
+    {
+      "id": "city_news_01",
+      "title": "Городские новости",
+      "owner_id": "admin_city_news",
+      "is_official": true,
+      "region_hint": "Санкт-Петербург",
+      "posts": [
+        {
+          "id": "post_1001",
+          "channel_id": "city_news_01",
+          "text": "Сегодня начались ремонтные работы на Невском проспекте.",
+          "created_at": "2026-04-03T08:10:00+03:00",
+          "reach": 4200,
+          "likes": 118,
+          "reposts": 12,
+          "comments_count": 2,
+          "author_id": "admin_city_news",
+          "comments": [
+            {
+              "id": "comment_9001",
+              "post_id": "post_1001",
+              "text": "Из-за этого утром были большие пробки",
+              "created_at": "2026-04-03T08:35:00+03:00",
+              "author_id": "user_42",
+              "likes": 3,
+              "replies_count": 1
+            },
+            {
+              "id": "comment_9002",
+              "post_id": "post_1001",
+              "text": "Когда планируется завершение?",
+              "created_at": "2026-04-03T08:50:00+03:00",
+              "author_id": "user_77",
+              "likes": 1,
+              "replies_count": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
