@@ -1,7 +1,8 @@
 import os
+import time
 
 from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import NoBrokersAvailable, TopicAlreadyExistsError
+from kafka.errors import NodeNotReadyError, NoBrokersAvailable, TopicAlreadyExistsError
 
 from config import load_config
 
@@ -26,19 +27,30 @@ def _topic_params(topic_name: str, broker_count: int) -> tuple[int, int]:
     return 1, replication
 
 
+def _create_admin_client(max_attempts: int = 5, retry_delay_seconds: float = 1.0) -> KafkaAdminClient:
+    last_error: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return KafkaAdminClient(
+                bootstrap_servers=CONFIG.kafka_bootstrap_servers,
+                client_id="topic-creator",
+            )
+        except (NoBrokersAvailable, NodeNotReadyError) as exc:
+            last_error = exc
+            if attempt == max_attempts:
+                break
+            time.sleep(retry_delay_seconds)
+
+    raise RuntimeError(
+        "Kafka broker недоступен для create_topic.py после повторных попыток. "
+        "Проверь KAFKA_BOOTSTRAP_SERVERS "
+        f"(сейчас: {CONFIG.kafka_bootstrap_servers!r}) "
+        "и убедись, что контейнер kafka запущен."
+    ) from last_error
+
+
 def main():
-    try:
-        admin_client = KafkaAdminClient(
-            bootstrap_servers=CONFIG.kafka_bootstrap_servers,
-            client_id="topic-creator",
-        )
-    except NoBrokersAvailable as exc:
-        raise RuntimeError(
-            "Kafka broker недоступен для create_topic.py. "
-            "Проверь KAFKA_BOOTSTRAP_SERVERS "
-            f"(сейчас: {CONFIG.kafka_bootstrap_servers!r}) "
-            "и убедись, что контейнер kafka запущен."
-        ) from exc
+    admin_client = _create_admin_client()
     broker_count = _broker_count(CONFIG.kafka_bootstrap_servers)
 
     topics_to_create = [
