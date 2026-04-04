@@ -7,6 +7,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from id_builders import build_rss_article_doc_id
 from region_extractor import extract_geo, extract_region_hint
 from schema import MediaType, NormalizedDocument, SourceType
 
@@ -14,10 +15,6 @@ load_dotenv()
 
 RSS_FEEDS = os.getenv("RSS_FEEDS", "")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-
-
-def _stable_doc_id(source_type: SourceType, source_id: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source_type.value}:{source_id}"))
 
 
 def _parse_entry_datetime(entry: dict[str, Any]) -> datetime:
@@ -86,7 +83,7 @@ def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocum
     region_hint = extract_region_hint(text, raw_payload)
 
     return NormalizedDocument(
-        doc_id=_stable_doc_id(SourceType.RSS_ARTICLE, source_id),
+        doc_id=build_rss_article_doc_id(source_id),
         source_type=SourceType.RSS_ARTICLE,
         source_id=source_id,
         parent_id=None,

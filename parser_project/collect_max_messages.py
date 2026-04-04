@@ -1,13 +1,13 @@
 import json
 import logging
 import os
-import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
 from dotenv import load_dotenv
 
+from id_builders import build_max_comment_doc_id, build_max_post_doc_id
 from kafka_producer import send_document
 from schema import MediaType, NormalizedDocument, SourceType
 
@@ -110,13 +110,9 @@ class MockMaxClient:
 #     ...
 
 
-def _stable_doc_id(source_type: SourceType, source_id: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source_type.value}:{source_id}"))
-
-
 def _parse_datetime(value: Any) -> datetime:
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, UTC)
+        return datetime.fromtimestamp(value, timezone.utc)
     if isinstance(value, str):
         candidate = value.strip()
         if candidate.endswith("Z"):
@@ -124,11 +120,11 @@ def _parse_datetime(value: Any) -> datetime:
         try:
             dt = datetime.fromisoformat(candidate)
             if dt.tzinfo is None:
-                return dt.replace(tzinfo=UTC)
-            return dt.astimezone(UTC)
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
         except ValueError:
-            logger.warning("Не удалось распарсить created_at=%s, используем текущее UTC", value)
-    return datetime.now(UTC)
+            logger.warning("Не удалось распарсить created_at=%s, используем текущее timezone.utc", value)
+    return datetime.now(timezone.utc)
 
 
 def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> NormalizedDocument:
@@ -141,14 +137,14 @@ def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> Nor
     source_id = f"{channel_id}_{post_id}"
 
     return NormalizedDocument(
-        doc_id=_stable_doc_id(SourceType.MAX_POST, source_id),
+        doc_id=build_max_post_doc_id(source_id),
         source_type=SourceType.MAX_POST,
         source_id=source_id,
         parent_id=None,
         text=text,
         media_type=MediaType.TEXT,
         created_at=_parse_datetime(raw_post.get("created_at")),
-        collected_at=datetime.now(UTC),
+        collected_at=datetime.now(timezone.utc),
         author_id=str(raw_post.get("author_id") or channel.get("owner_id") or "unknown"),
         is_official=bool(raw_post.get("is_official", channel.get("is_official", False))),
         reach=int(raw_post.get("reach", 0) or 0),
@@ -167,19 +163,21 @@ def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, An
     if not text:
         raise ValueError("Пустой MAX-комментарий: text обязателен")
 
-    post_source_id = str(parent_post.get("source_id") or parent_post.get("id"))
+    parent_channel_id = str(parent_post.get("channel_id") or "")
+    parent_post_id = str(parent_post.get("id"))
+    post_source_id = f"{parent_channel_id}_{parent_post_id}" if parent_channel_id else parent_post_id
     comment_id = str(raw_comment["id"])
     source_id = f"{post_source_id}_{comment_id}"
 
     return NormalizedDocument(
-        doc_id=_stable_doc_id(SourceType.MAX_COMMENT, source_id),
+        doc_id=build_max_comment_doc_id(source_id),
         source_type=SourceType.MAX_COMMENT,
         source_id=source_id,
-        parent_id=post_source_id,
+        parent_id=build_max_post_doc_id(post_source_id),
         text=text,
         media_type=MediaType.TEXT,
         created_at=_parse_datetime(raw_comment.get("created_at")),
-        collected_at=datetime.now(UTC),
+        collected_at=datetime.now(timezone.utc),
         author_id=str(raw_comment.get("author_id", "unknown")),
         is_official=bool(raw_comment.get("is_official", False)),
         reach=int(raw_comment.get("reach", 0) or 0),
