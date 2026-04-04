@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 import psycopg
-from kafka import KafkaAdminClient
 
-from config import load_config, validate_consumer_config, validate_db_config
+from config import load_config, validate_db_config
 
 
-@dataclass(frozen=True)
-class PipelineStats:
-    total_rows: int
-    rows_by_source_type: list[tuple[str, int]]
-    latest_documents: list[tuple[str, str, datetime, str]]
+REQUIRED_TABLES = (
+    "normalized_documents",
+    "document_fingerprints",
+    "ml_results",
+)
+REQUIRED_VIEW = "documents_with_ml"
 
 
 def _ok(message: str) -> None:
@@ -25,129 +23,75 @@ def _info(message: str) -> None:
     print(f"[INFO] {message}")
 
 
-def _fail(step: str, error: Exception) -> None:
-    print(f"[ERROR] Шаг '{step}' завершился с ошибкой: {error}")
-    raise SystemExit(1) from error
+def _fail(message: str) -> None:
+    print(f"[ERROR] {message}")
+    raise SystemExit(1)
 
 
-def _check_postgres(database_url: str) -> psycopg.Connection[Any]:
-    step = "Проверка доступности PostgreSQL"
-    try:
-        conn = psycopg.connect(database_url)
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1;")
-            cur.fetchone()
-        _ok("PostgreSQL доступен")
-        return conn
-    except Exception as error:  # noqa: BLE001
-        _fail(step, error)
-
-
-def _check_table_exists(conn: psycopg.Connection[Any], table_name: str) -> None:
-    step = f"Проверка наличия таблицы {table_name}"
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                      AND table_name = %s
-                );
-                """,
-                (table_name,),
-            )
-            exists = cur.fetchone()[0]
-
-        if not exists:
-            raise RuntimeError(f"Таблица {table_name} не найдена в схеме public")
-
-        _ok(f"Таблица {table_name} найдена")
-    except Exception as error:  # noqa: BLE001
-        _fail(step, error)
-
-
-def _collect_db_stats(conn: psycopg.Connection[Any]) -> PipelineStats:
-    step = "Сбор статистики по normalized_documents"
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM normalized_documents;")
-            total_rows = cur.fetchone()[0]
-
-            cur.execute(
-                """
-                SELECT source_type, COUNT(*) AS rows_count
-                FROM normalized_documents
-                GROUP BY source_type
-                ORDER BY rows_count DESC, source_type ASC;
-                """
-            )
-            rows_by_source_type = cur.fetchall()
-
-            cur.execute(
-                """
-                SELECT doc_id, source_type, created_at, LEFT(text, 120)
-                FROM normalized_documents
-                ORDER BY created_at DESC
-                LIMIT 5;
-                """
-            )
-            latest_documents = cur.fetchall()
-
-        _ok("Статистика по таблице собрана")
-        return PipelineStats(
-            total_rows=total_rows,
-            rows_by_source_type=rows_by_source_type,
-            latest_documents=latest_documents,
+def _exists(conn: psycopg.Connection[Any], object_type: str, object_name: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_type = %s
+                  AND table_name = %s
+            );
+            """,
+            (object_type, object_name),
         )
-    except Exception as error:  # noqa: BLE001
-        _fail(step, error)
+        return bool(cur.fetchone()[0])
 
 
-def _check_kafka(bootstrap_servers: str, topic_name: str) -> None:
-    step_connect = "Проверка доступности Kafka"
-    step_topic = f"Проверка наличия Kafka topic {topic_name}"
+def _check_required_objects(conn: psycopg.Connection[Any]) -> None:
+    missing_tables = [table for table in REQUIRED_TABLES if not _exists(conn, "BASE TABLE", table)]
+    if missing_tables:
+        _fail(
+            "Отсутствуют обязательные таблицы: "
+            + ", ".join(missing_tables)
+            + ". Проверьте миграции и этапы ingestion/ml."
+        )
 
-    client = None
-    try:
-        client = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
-        _ok("Kafka доступен")
-    except Exception as error:  # noqa: BLE001
-        _fail(step_connect, error)
+    if not _exists(conn, "VIEW", REQUIRED_VIEW):
+        _fail(
+            f"Отсутствует обязательное представление {REQUIRED_VIEW}. "
+            "Проверьте SQL-миграции для витрины с ML-результатами."
+        )
 
-    try:
-        topics = client.list_topics()
-        if topic_name not in topics:
-            raise RuntimeError(f"Topic '{topic_name}' отсутствует")
-        _ok(f"Kafka topic '{topic_name}' найден")
-    except Exception as error:  # noqa: BLE001
-        _fail(step_topic, error)
-    finally:
-        if client is not None:
-            client.close()
+    _ok("Все обязательные таблицы и представление найдены")
 
 
-def _print_report(stats: PipelineStats) -> None:
-    print("\n================ Pipeline health report ================")
-    _info(f"Всего записей в normalized_documents: {stats.total_rows}")
+def _count_rows(conn: psycopg.Connection[Any], table_name: str) -> int:
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) FROM {table_name};")
+        return int(cur.fetchone()[0])
 
-    print("\n[INFO] Записи по source_type:")
-    if not stats.rows_by_source_type:
+
+def _fetch_latest_documents_with_ml(conn: psycopg.Connection[Any], limit: int = 5) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(
+            """
+            SELECT *
+            FROM documents_with_ml
+            ORDER BY created_at DESC NULLS LAST
+            LIMIT %s;
+            """,
+            (limit,),
+        )
+        return list(cur.fetchall())
+
+
+def _print_documents(rows: list[dict[str, Any]]) -> None:
+    print("\n[INFO] Последние 5 записей из documents_with_ml:")
+    if not rows:
         print("  - данных пока нет")
-    else:
-        for source_type, count in stats.rows_by_source_type:
-            print(f"  - {source_type}: {count}")
+        return
 
-    print("\n[INFO] Последние 5 документов:")
-    if not stats.latest_documents:
-        print("  - документов пока нет")
-    else:
-        for doc_id, source_type, created_at, text_preview in stats.latest_documents:
-            preview = (text_preview or "").replace("\n", " ").strip()
-            print(f"  - {created_at.isoformat()} | {source_type} | {doc_id} | {preview}")
-
-    print("========================================================")
+    for index, row in enumerate(rows, start=1):
+        rendered = ", ".join(f"{key}={value!r}" for key, value in row.items())
+        print(f"  {index}. {rendered}")
 
 
 def main() -> None:
@@ -155,19 +99,27 @@ def main() -> None:
 
     try:
         validate_db_config(config)
-        validate_consumer_config(config)
     except Exception as error:  # noqa: BLE001
-        _fail("Проверка обязательных переменных окружения", error)
+        _fail(f"Ошибка конфигурации: {error}")
 
-    conn = _check_postgres(config.database_url)
     try:
-        _check_table_exists(conn, "normalized_documents")
-        stats = _collect_db_stats(conn)
-    finally:
-        conn.close()
+        with psycopg.connect(config.database_url) as conn:
+            _ok("Подключение к PostgreSQL установлено")
+            _check_required_objects(conn)
 
-    _check_kafka(config.kafka_bootstrap_servers, config.kafka_topic)
-    _print_report(stats)
+            normalized_count = _count_rows(conn, "normalized_documents")
+            ml_results_count = _count_rows(conn, "ml_results")
+
+            _info(f"Количество записей в normalized_documents: {normalized_count}")
+            _info(f"Количество записей в ml_results: {ml_results_count}")
+
+            latest_rows = _fetch_latest_documents_with_ml(conn, limit=5)
+            _print_documents(latest_rows)
+
+    except SystemExit:
+        raise
+    except Exception as error:  # noqa: BLE001
+        _fail(f"Ошибка smoke-check pipeline: {error}")
 
 
 if __name__ == "__main__":
