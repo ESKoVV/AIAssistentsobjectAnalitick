@@ -16,9 +16,8 @@ export const DocumentDetail = () => {
   return (
     <div className="space-y-4">
       <div className="text-sm text-slate-400">
-        <Link to="/" className="underline">Dashboard</Link> → <Link to="/feed" className="underline">Лента</Link> → Документ
+        <Link to="/" className="underline">Обзор</Link> → <Link to="/feed" className="underline">Лента</Link> → Пост
       </div>
-      <h2 className="font-mono text-xl">{data.doc_id}</h2>
       <div className="rounded-lg border border-slate-700 bg-panel p-4 text-sm">
         <div className="grid gap-2 md:grid-cols-2">
           <div><SourceBadge sourceType={data.source_type} /></div>
@@ -26,7 +25,6 @@ export const DocumentDetail = () => {
           <div>Собран: {formatDateTime(data.collected_at)}</div>
           <div>Автор: <span className="font-mono">{data.author_id}</span></div>
           <div>Регион: {data.region_hint ?? '—'}</div>
-          <div>Координаты: {data.geo_lat ?? '—'}, {data.geo_lon ?? '—'}</div>
         </div>
       </div>
 
@@ -37,11 +35,7 @@ export const DocumentDetail = () => {
         <span>🔁 {data.reposts}</span>
         <span>💬 {data.comments_count}</span>
       </div>
-      {data.parent_id && <Link className="text-blue-400 underline" to={`/document/${data.parent_id}`}>Родительский документ: {data.parent_id}</Link>}
-      <details className="rounded-lg border border-slate-700 bg-panel p-4">
-        <summary className="cursor-pointer">raw JSON</summary>
-        <pre className="mt-3 overflow-auto text-xs">{JSON.stringify(data.raw_payload, null, 2)}</pre>
-      </details>
+      {data.parent_id && <Link className="text-blue-400 underline" to={`/post/${data.parent_id}`}>Родительский пост: {data.parent_id}</Link>}
     </div>
   );
 };

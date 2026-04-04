@@ -7,7 +7,7 @@ export const DocumentCard = ({ doc }: { doc: NormalizedDocument }) => {
   const tags = inferDocumentTags(doc);
 
   return (
-    <Link to={`/document/${doc.doc_id}`} className="block rounded-lg border border-slate-700 bg-panel p-4 hover:border-blue-500">
+    <Link to={`/post/${doc.doc_id}`} className="block rounded-lg border border-slate-700 bg-panel p-4 hover:border-blue-500">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1">
           {tags.map((tag) => (
