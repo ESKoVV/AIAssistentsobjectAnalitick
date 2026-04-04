@@ -1,7 +1,7 @@
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -15,6 +15,13 @@ load_dotenv()
 
 RSS_FEEDS = os.getenv("RSS_FEEDS", "")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
+DAYS_BACK = int(os.getenv("DAYS_BACK", "7"))
+
+
+def _cutoff_datetime(days_back: int) -> datetime:
+    if days_back < 0:
+        raise ValueError("DAYS_BACK должен быть >= 0")
+    return datetime.now(timezone.utc) - timedelta(days=days_back)
 
 
 def _parse_entry_datetime(entry: dict[str, Any]) -> datetime:
@@ -119,12 +126,16 @@ def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
 def main() -> None:
     if not RSS_FEEDS.strip():
         raise ValueError("Не найден RSS_FEEDS в .env")
+    if DAYS_BACK < 0:
+        raise ValueError("DAYS_BACK должен быть >= 0")
 
     feed_urls = [x.strip() for x in RSS_FEEDS.split(",") if x.strip()]
+    cutoff_dt = _cutoff_datetime(DAYS_BACK)
 
     print("RSS-ленты для обхода:")
     for feed_url in feed_urls:
         print(f" - {feed_url}")
+    print(f"Фильтрация по created_at: только за последние {DAYS_BACK} дней (cutoff={cutoff_dt.isoformat()})")
     print("-" * 80)
 
     total_sent = 0
@@ -143,8 +154,14 @@ def main() -> None:
             print(f"[{feed_url}] Получено записей: {len(entries)}")
 
             feed_sent = 0
+            feed_dropped_old = 0
             for entry in entries:
                 try:
+                    created_at = _parse_entry_datetime(entry)
+                    if created_at < cutoff_dt:
+                        feed_dropped_old += 1
+                        continue
+
                     doc = normalize_rss_entry(feed_url, entry)
                     from kafka_producer import send_document
 
@@ -165,6 +182,7 @@ def main() -> None:
                     print("-" * 80)
 
             print(f"[{feed_url}] Отправлено в Kafka: {feed_sent}")
+            print(f"[{feed_url}] Отфильтровано как слишком старые: {feed_dropped_old}")
             print("-" * 80)
 
         except Exception as feed_error:
