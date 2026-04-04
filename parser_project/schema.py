@@ -46,3 +46,27 @@ class NormalizedDocument(BaseModel):
     geo_lon: Optional[float]
 
     raw_payload: dict
+
+
+class RawDocument(BaseModel):
+    doc_id: str
+    source_type: str
+    source_id: str
+    parent_source_id: Optional[str]
+
+    text_raw: str
+    title_raw: Optional[str]
+    author_raw: Optional[str]
+    created_at_raw: Optional[str]
+
+    created_at: datetime
+    collected_at: datetime
+
+    source_url: Optional[str]
+    source_domain: Optional[str]
+
+    region_hint_raw: Optional[str]
+    geo_raw: Optional[dict]
+
+    engagement_raw: dict
+    raw_payload: dict
