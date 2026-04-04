@@ -83,6 +83,23 @@ services:
       postgres:
         condition: service_healthy
 
+  ml-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python ml_consumer.py
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hack_user}:${POSTGRES_PASSWORD:-hack_pass}@postgres:5432/${POSTGRES_DB:-hack_db}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
   vk-collector:
     build:
       context: .
