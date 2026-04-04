@@ -1,21 +1,15 @@
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
-from dotenv import load_dotenv
-
+from config import load_config, validate_max_config
 from id_builders import build_max_comment_doc_id, build_max_post_doc_id
 from kafka_producer import send_document
 from schema import MediaType, NormalizedDocument, SourceType
 
-load_dotenv()
-
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-MAX_MOCK_DATA_PATH = os.getenv("MAX_MOCK_DATA_PATH", "parser_project/mock/max_messages.json")
-MAX_OUTPUT_JSONL_PATH = os.getenv("MAX_OUTPUT_JSONL_PATH", "documents.jsonl")
+CONFIG = load_config()
 
 logger = logging.getLogger("collect_max_messages")
 
@@ -216,7 +210,7 @@ def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
             try:
                 post_doc = normalize_max_post(post, channel)
                 send_document(kafka_topic, post_doc.model_dump())
-                save_document_jsonl(MAX_OUTPUT_JSONL_PATH, post_doc)
+                save_document_jsonl(CONFIG.max_output_jsonl_path, post_doc)
                 total_sent += 1
             except Exception as post_error:
                 logger.exception("Ошибка нормализации/отправки поста channel=%s: %s", channel_id, post_error)
@@ -233,7 +227,7 @@ def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
                 try:
                     comment_doc = normalize_max_comment(comment, post)
                     send_document(kafka_topic, comment_doc.model_dump())
-                    save_document_jsonl(MAX_OUTPUT_JSONL_PATH, comment_doc)
+                    save_document_jsonl(CONFIG.max_output_jsonl_path, comment_doc)
                     total_sent += 1
                 except Exception as comment_error:
                     logger.exception(
@@ -247,19 +241,20 @@ def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
 
 
 def main() -> None:
+    validate_max_config(CONFIG)
     logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO"),
+        level=CONFIG.log_level,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
 
     logger.info("Запуск сборщика MAX (mock mode)")
-    logger.info("Kafka topic=%s", KAFKA_TOPIC)
-    logger.info("Mock data path=%s", MAX_MOCK_DATA_PATH)
+    logger.info("Kafka topic=%s", CONFIG.kafka_topic)
+    logger.info("Mock data path=%s", CONFIG.max_mock_data_path)
 
     # TODO: заменить фабрику клиента на переключение mock/real через env-флаг.
-    client: MaxClient = MockMaxClient(MAX_MOCK_DATA_PATH)
+    client: MaxClient = MockMaxClient(CONFIG.max_mock_data_path)
 
-    total = process_max_messages(client, KAFKA_TOPIC)
+    total = process_max_messages(client, CONFIG.kafka_topic)
     logger.info("MAX ingest завершён, отправлено сообщений=%d", total)
 
 

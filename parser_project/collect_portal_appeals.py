@@ -1,23 +1,16 @@
 import json
-import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from dotenv import load_dotenv
-
+from config import load_config, validate_portal_config
 from id_builders import build_portal_appeal_doc_id
 from kafka_producer import send_document
 from schema import MediaType, NormalizedDocument, SourceType
 
-load_dotenv()
-
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-PORTAL_SOURCE = os.getenv("PORTAL_SOURCE", "mock_local_file")
-PORTAL_NAME = os.getenv("PORTAL_NAME", "mock_portal")
-PORTAL_APPEALS_FILE = os.getenv("PORTAL_APPEALS_FILE", "portal_appeals.jsonl")
+CONFIG = load_config()
 
 
 @dataclass(frozen=True)
@@ -189,12 +182,13 @@ def build_loader(source_name: str, **kwargs: Any) -> PortalAppealLoader:
 
 
 def main() -> None:
-    loader = build_loader(PORTAL_SOURCE, file_path=PORTAL_APPEALS_FILE)
+    validate_portal_config(CONFIG)
+    loader = build_loader(CONFIG.portal_source, file_path=CONFIG.portal_appeals_file)
 
-    print(f"Источник обращений: {PORTAL_SOURCE}")
-    print(f"Портал: {PORTAL_NAME}")
-    if PORTAL_SOURCE == "mock_local_file":
-        print(f"Файл: {PORTAL_APPEALS_FILE}")
+    print(f"Источник обращений: {CONFIG.portal_source}")
+    print(f"Портал: {CONFIG.portal_name}")
+    if CONFIG.portal_source == "mock_local_file":
+        print(f"Файл: {CONFIG.portal_appeals_file}")
     print("-" * 80)
 
     sent = 0
@@ -202,7 +196,7 @@ def main() -> None:
     for appeal in loader.iter_appeals():
         try:
             doc = normalize_portal_appeal(appeal)
-            send_document(KAFKA_TOPIC, doc.model_dump())
+            send_document(CONFIG.kafka_topic, doc.model_dump())
             save_document_jsonl("documents.jsonl", doc)
 
             short_view = doc.model_dump()
@@ -212,7 +206,7 @@ def main() -> None:
             print("-" * 80)
             sent += 1
         except Exception as error:
-            print(f"[portal={PORTAL_NAME}] [appeal_id={appeal.appeal_id}] Ошибка обработки: {error}")
+            print(f"[portal={CONFIG.portal_name}] [appeal_id={appeal.appeal_id}] Ошибка обработки: {error}")
             print("-" * 80)
 
     print(f"Всего отправлено в Kafka: {sent}")

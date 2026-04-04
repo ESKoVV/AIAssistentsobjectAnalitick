@@ -1,20 +1,12 @@
 import json
-import os
 from datetime import datetime, timedelta, timezone
 
-from dotenv import load_dotenv
-
+from config import load_config, validate_vk_config
 from kafka_producer import send_document
 from normalizers.vk import normalize_vk_comment, normalize_vk_post
 from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
 
-load_dotenv()
-
-VK_GROUP_DOMAINS = os.getenv("VK_GROUP_DOMAINS", "")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-VK_POSTS_PER_GROUP = int(os.getenv("VK_POSTS_PER_GROUP", "100"))
-VK_PAGE_SIZE = int(os.getenv("VK_PAGE_SIZE", "20"))
-DAYS_BACK = int(os.getenv("DAYS_BACK", "7"))
+CONFIG = load_config()
 
 
 def _cutoff_datetime(days_back: int) -> datetime:
@@ -58,22 +50,17 @@ def save_document_jsonl(path: str, doc) -> None:
 
 
 def main():
-    if not VK_GROUP_DOMAINS.strip():
-        raise ValueError("Не найден VK_GROUP_DOMAINS в .env")
-    if VK_POSTS_PER_GROUP <= 0:
-        raise ValueError("VK_POSTS_PER_GROUP должен быть > 0")
-    if VK_PAGE_SIZE <= 0:
-        raise ValueError("VK_PAGE_SIZE должен быть > 0")
-    if DAYS_BACK < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-
-    group_domains = [x.strip() for x in VK_GROUP_DOMAINS.split(",") if x.strip()]
-    cutoff_dt = _cutoff_datetime(DAYS_BACK)
+    validate_vk_config(CONFIG)
+    group_domains = CONFIG.vk_group_domains
+    cutoff_dt = _cutoff_datetime(CONFIG.days_back)
 
     print("Группы для обхода:")
     for domain in group_domains:
         print(f" - {domain}")
-    print(f"Фильтрация по created_at: только за последние {DAYS_BACK} дней (cutoff={cutoff_dt.isoformat()})")
+    print(
+        f"Фильтрация по created_at: только за последние {CONFIG.days_back} дней "
+        f"(cutoff={cutoff_dt.isoformat()})"
+    )
     print("-" * 80)
 
     total_sent = 0
@@ -89,9 +76,9 @@ def main():
             group_comments_dropped_old = 0
             offset = 0
 
-            while group_posts_sent < VK_POSTS_PER_GROUP:
-                remaining_posts = VK_POSTS_PER_GROUP - group_posts_sent
-                page_size = min(VK_PAGE_SIZE, remaining_posts)
+            while group_posts_sent < CONFIG.vk_posts_per_group:
+                remaining_posts = CONFIG.vk_posts_per_group - group_posts_sent
+                page_size = min(CONFIG.vk_page_size, remaining_posts)
 
                 raw_posts = get_wall_posts(owner_id, count=page_size, offset=offset)
                 page_posts_received = len(raw_posts)
@@ -107,7 +94,7 @@ def main():
                     break
 
                 for raw_post in raw_posts:
-                    if group_posts_sent >= VK_POSTS_PER_GROUP:
+                    if group_posts_sent >= CONFIG.vk_posts_per_group:
                         break
 
                     post_created_at = _vk_created_at(raw_post)
@@ -121,7 +108,7 @@ def main():
 
                     doc = normalize_vk_post(raw_post)
 
-                    send_document(KAFKA_TOPIC, doc.model_dump())
+                    send_document(CONFIG.kafka_topic, doc.model_dump())
                     save_document_jsonl("documents.jsonl", doc)
 
                     short_view = doc.model_dump()
@@ -154,7 +141,7 @@ def main():
                                 continue
 
                             comment_doc = normalize_vk_comment(raw_comment, raw_post)
-                            send_document(KAFKA_TOPIC, comment_doc.model_dump())
+                            send_document(CONFIG.kafka_topic, comment_doc.model_dump())
                             save_document_jsonl("documents.jsonl", comment_doc)
                             total_sent += 1
                             post_comments_sent += 1

@@ -1,10 +1,11 @@
-import os
-from dotenv import load_dotenv
 import psycopg
 
-load_dotenv()
+from config import load_config, validate_db_config
 
-with psycopg.connect(os.getenv("DATABASE_URL")) as conn:
+CONFIG = load_config()
+validate_db_config(CONFIG)
+
+with psycopg.connect(CONFIG.database_url) as conn:
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM normalized_documents;")
         print("Всего записей:", cur.fetchone()[0])

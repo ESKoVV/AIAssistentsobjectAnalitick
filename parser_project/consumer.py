@@ -1,26 +1,19 @@
 import json
-import os
 from datetime import datetime, UTC
-from pathlib import Path
 
-from dotenv import load_dotenv
 from kafka import KafkaConsumer
 from pydantic import ValidationError
 
+from config import load_config, validate_consumer_config
 from db import upsert_document
 from schema import NormalizedDocument
 
-load_dotenv()
-
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "documents-consumer-group")
-FAILED_MESSAGES_PATH = Path(os.getenv("FAILED_MESSAGES_PATH", "failed_messages.jsonl"))
+CONFIG = load_config()
 
 
 def save_failed_message(raw_message: dict, error: str) -> None:
-    FAILED_MESSAGES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with FAILED_MESSAGES_PATH.open("a", encoding="utf-8") as f:
+    CONFIG.failed_messages_path.parent.mkdir(parents=True, exist_ok=True)
+    with CONFIG.failed_messages_path.open("a", encoding="utf-8") as f:
         f.write(
             json.dumps(
                 {
@@ -36,16 +29,17 @@ def save_failed_message(raw_message: dict, error: str) -> None:
 
 
 def main() -> None:
+    validate_consumer_config(CONFIG)
     consumer = KafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        CONFIG.kafka_topic,
+        bootstrap_servers=CONFIG.kafka_bootstrap_servers,
         auto_offset_reset="earliest",
         enable_auto_commit=True,
-        group_id=KAFKA_GROUP_ID,
+        group_id=CONFIG.kafka_group_id,
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
     )
 
-    print(f"Слушаю Kafka topic: {KAFKA_TOPIC}")
+    print(f"Слушаю Kafka topic: {CONFIG.kafka_topic}")
     print("Нажми Ctrl+C, чтобы остановить.")
     print("-" * 80)
 

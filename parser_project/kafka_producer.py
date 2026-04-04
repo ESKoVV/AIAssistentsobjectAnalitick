@@ -1,16 +1,13 @@
 import json
-import os
-
-from dotenv import load_dotenv
 from kafka import KafkaProducer
 
-load_dotenv()
+from config import load_config
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+CONFIG = load_config()
 
 
 producer = KafkaProducer(
-    bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+    bootstrap_servers=CONFIG.kafka_bootstrap_servers,
     value_serializer=lambda v: json.dumps(
         v,
         ensure_ascii=False,
