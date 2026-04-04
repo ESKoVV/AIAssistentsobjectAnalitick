@@ -296,3 +296,85 @@ def upsert_document(document: NormalizedDocument) -> None:
         with conn.cursor() as cur:
             cur.execute(query, payload)
             _upsert_document_fingerprint(cur, document)
+
+
+def _serialize_jsonb(value: Optional[dict]) -> str:
+    return json.dumps(value or {}, ensure_ascii=False)
+
+
+def save_ml_result(
+    *,
+    doc_id: str,
+    summary: Optional[str],
+    score: Optional[float],
+    category: Optional[str],
+    model_version: Optional[str],
+    prompt_version: Optional[str],
+    status: str = "processed",
+    error_message: Optional[str] = None,
+    raw_result: Optional[dict] = None,
+) -> None:
+    query = """
+    INSERT INTO ml_results (
+        doc_id,
+        summary,
+        score,
+        category,
+        model_version,
+        prompt_version,
+        status,
+        error_message,
+        raw_result
+    ) VALUES (
+        %(doc_id)s,
+        %(summary)s,
+        %(score)s,
+        %(category)s,
+        %(model_version)s,
+        %(prompt_version)s,
+        %(status)s,
+        %(error_message)s,
+        %(raw_result)s::jsonb
+    )
+    ON CONFLICT (doc_id) DO UPDATE
+    SET
+        summary = EXCLUDED.summary,
+        score = EXCLUDED.score,
+        category = EXCLUDED.category,
+        model_version = EXCLUDED.model_version,
+        prompt_version = EXCLUDED.prompt_version,
+        status = EXCLUDED.status,
+        error_message = EXCLUDED.error_message,
+        raw_result = EXCLUDED.raw_result,
+        processed_at = NOW();
+    """
+
+    payload = {
+        "doc_id": doc_id,
+        "summary": summary,
+        "score": score,
+        "category": category,
+        "model_version": model_version,
+        "prompt_version": prompt_version,
+        "status": status,
+        "error_message": error_message,
+        "raw_result": _serialize_jsonb(raw_result),
+    }
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, payload)
+
+
+def save_ml_error(doc_id: str, error_message: str, raw_result: Optional[dict] = None) -> None:
+    save_ml_result(
+        doc_id=doc_id,
+        summary=None,
+        score=None,
+        category=None,
+        model_version=None,
+        prompt_version=None,
+        status="error",
+        error_message=error_message,
+        raw_result=raw_result,
+    )
