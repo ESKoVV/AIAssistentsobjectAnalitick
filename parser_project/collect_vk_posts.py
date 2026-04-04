@@ -11,6 +11,8 @@ load_dotenv()
 
 VK_GROUP_DOMAINS = os.getenv("VK_GROUP_DOMAINS", "")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
+VK_POSTS_PER_GROUP = int(os.getenv("VK_POSTS_PER_GROUP", "100"))
+VK_PAGE_SIZE = int(os.getenv("VK_PAGE_SIZE", "20"))
 
 
 def get_group_owner_id(screen_name: str) -> int:
@@ -43,6 +45,10 @@ def save_document_jsonl(path: str, doc) -> None:
 def main():
     if not VK_GROUP_DOMAINS.strip():
         raise ValueError("Не найден VK_GROUP_DOMAINS в .env")
+    if VK_POSTS_PER_GROUP <= 0:
+        raise ValueError("VK_POSTS_PER_GROUP должен быть > 0")
+    if VK_PAGE_SIZE <= 0:
+        raise ValueError("VK_PAGE_SIZE должен быть > 0")
 
     group_domains = [x.strip() for x in VK_GROUP_DOMAINS.split(",") if x.strip()]
 
@@ -58,52 +64,94 @@ def main():
             owner_id = get_group_owner_id(domain)
             print(f"[{domain}] owner_id = {owner_id}")
 
-            raw_posts = get_wall_posts(owner_id, count=5)
-            print(f"[{domain}] Получено постов: {len(raw_posts)}")
+            group_posts_sent = 0
+            group_comments_sent = 0
+            offset = 0
 
-            for raw_post in raw_posts:
-                text = raw_post.get("text", "")
-                if not text.strip():
-                    continue
+            while group_posts_sent < VK_POSTS_PER_GROUP:
+                remaining_posts = VK_POSTS_PER_GROUP - group_posts_sent
+                page_size = min(VK_PAGE_SIZE, remaining_posts)
 
-                doc = normalize_vk_post(raw_post)
+                raw_posts = get_wall_posts(owner_id, count=page_size, offset=offset)
+                page_posts_received = len(raw_posts)
+                page_posts_sent = 0
 
-                send_document(KAFKA_TOPIC, doc.model_dump())
-                save_document_jsonl("documents.jsonl", doc)
+                print(
+                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
+                    f"отправлено постов: {page_posts_sent}"
+                )
 
-                short_view = doc.model_dump()
-                short_view.pop("raw_payload", None)
+                if not raw_posts:
+                    print(f"[{domain}] Посты закончились (offset={offset}).")
+                    break
 
-                print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
+                for raw_post in raw_posts:
+                    if group_posts_sent >= VK_POSTS_PER_GROUP:
+                        break
+
+                    text = raw_post.get("text", "")
+                    if not text.strip():
+                        continue
+
+                    doc = normalize_vk_post(raw_post)
+
+                    send_document(KAFKA_TOPIC, doc.model_dump())
+                    save_document_jsonl("documents.jsonl", doc)
+
+                    short_view = doc.model_dump()
+                    short_view.pop("raw_payload", None)
+
+                    print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
+                    print("-" * 80)
+
+                    total_sent += 1
+                    group_posts_sent += 1
+                    page_posts_sent += 1
+
+                    post_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
+                    try:
+                        raw_comments = get_post_comments(
+                            owner_id=raw_post["owner_id"],
+                            post_id=raw_post["id"],
+                        )
+                        print(f"[{domain}] [{post_source_id}] Получено комментариев: {len(raw_comments)}")
+
+                        post_comments_sent = 0
+                        for raw_comment in raw_comments:
+                            comment_text = raw_comment.get("text", "")
+                            if not comment_text.strip():
+                                continue
+
+                            comment_doc = normalize_vk_comment(raw_comment, raw_post)
+                            send_document(KAFKA_TOPIC, comment_doc.model_dump())
+                            save_document_jsonl("documents.jsonl", comment_doc)
+                            total_sent += 1
+                            post_comments_sent += 1
+                            group_comments_sent += 1
+
+                        print(f"[{domain}] [{post_source_id}] Отправлено комментариев: {post_comments_sent}")
+                        print("-" * 80)
+                    except Exception as e:
+                        print(f"[{domain}] [{post_source_id}] Ошибка сбора комментариев: {e}")
+                        print("-" * 80)
+
+                print(
+                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
+                    f"отправлено постов: {page_posts_sent}"
+                )
                 print("-" * 80)
 
-                total_sent += 1
+                offset += page_posts_received
 
-                post_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
-                try:
-                    raw_comments = get_post_comments(
-                        owner_id=raw_post["owner_id"],
-                        post_id=raw_post["id"],
-                    )
-                    print(f"[{domain}] [{post_source_id}] Получено комментариев: {len(raw_comments)}")
+                if page_posts_received < page_size:
+                    print(f"[{domain}] Достигнут конец стены (offset={offset}).")
+                    break
 
-                    post_comments_sent = 0
-                    for raw_comment in raw_comments:
-                        comment_text = raw_comment.get("text", "")
-                        if not comment_text.strip():
-                            continue
-
-                        comment_doc = normalize_vk_comment(raw_comment, raw_post)
-                        send_document(KAFKA_TOPIC, comment_doc.model_dump())
-                        save_document_jsonl("documents.jsonl", comment_doc)
-                        total_sent += 1
-                        post_comments_sent += 1
-
-                    print(f"[{domain}] [{post_source_id}] Отправлено комментариев: {post_comments_sent}")
-                    print("-" * 80)
-                except Exception as e:
-                    print(f"[{domain}] [{post_source_id}] Ошибка сбора комментариев: {e}")
-                    print("-" * 80)
+            print(
+                f"[{domain}] Итого отправлено: постов={group_posts_sent}, "
+                f"комментариев={group_comments_sent}, всего={group_posts_sent + group_comments_sent}"
+            )
+            print("-" * 80)
 
         except Exception as e:
             print(f"[{domain}] Ошибка: {e}")
