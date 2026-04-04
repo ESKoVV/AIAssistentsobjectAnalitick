@@ -19,3 +19,7 @@ producer = KafkaProducer(
 def send_document(topic: str, document: dict) -> None:
     producer.send(topic, document)
     producer.flush()
+
+
+def send_document_to_ml_topic(document: dict) -> None:
+    send_document(CONFIG.kafka_ml_topic, document)
