@@ -6,6 +6,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+PROJECT_DIR = Path(__file__).resolve().parent
+
+# Сначала загружаем переменные из parser_project/.env независимо от текущей директории запуска,
+# затем даем возможность дополнить их .env из cwd (если он есть).
+load_dotenv(PROJECT_DIR / ".env")
 load_dotenv()
 
 
