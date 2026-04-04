@@ -1,14 +1,13 @@
 import json
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
-import feedparser
 from dotenv import load_dotenv
 
-from kafka_producer import send_document
+from region_extractor import extract_geo, extract_region_hint
 from schema import MediaType, NormalizedDocument, SourceType
 
 load_dotenv()
@@ -24,7 +23,7 @@ def _stable_doc_id(source_type: SourceType, source_id: str) -> str:
 def _parse_entry_datetime(entry: dict[str, Any]) -> datetime:
     published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if published_parsed:
-        return datetime(*published_parsed[:6], tzinfo=UTC)
+        return datetime(*published_parsed[:6], tzinfo=timezone.utc)
 
     for field in ("published", "updated"):
         raw_value = entry.get(field)
@@ -33,12 +32,12 @@ def _parse_entry_datetime(entry: dict[str, Any]) -> datetime:
         try:
             dt = parsedate_to_datetime(raw_value)
             if dt.tzinfo is None:
-                return dt.replace(tzinfo=UTC)
-            return dt.astimezone(UTC)
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
         except (TypeError, ValueError):
             continue
 
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 def _build_source_id(feed_url: str, entry: dict[str, Any]) -> str:
@@ -82,6 +81,9 @@ def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocum
         raise ValueError("Пустая RSS-запись: отсутствуют title/summary/content")
 
     source_id = _build_source_id(feed_url, entry)
+    raw_payload = _to_raw_payload(entry)
+    geo_lat, geo_lon = extract_geo(raw_payload)
+    region_hint = extract_region_hint(text, raw_payload)
 
     return NormalizedDocument(
         doc_id=_stable_doc_id(SourceType.RSS_ARTICLE, source_id),
@@ -91,17 +93,17 @@ def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocum
         text=text,
         media_type=MediaType.LINK,
         created_at=_parse_entry_datetime(entry),
-        collected_at=datetime.now(UTC),
+        collected_at=datetime.now(timezone.utc),
         author_id=str(entry.get("author") or entry.get("source", {}).get("title") or "rss"),
         is_official=False,
         reach=0,
         likes=0,
         reposts=0,
         comments_count=0,
-        region_hint=None,
-        geo_lat=None,
-        geo_lon=None,
-        raw_payload=_to_raw_payload(entry),
+        region_hint=region_hint,
+        geo_lat=geo_lat,
+        geo_lon=geo_lon,
+        raw_payload=raw_payload,
     )
 
 
@@ -132,6 +134,8 @@ def main() -> None:
 
     for feed_url in feed_urls:
         try:
+            import feedparser
+
             parsed_feed = feedparser.parse(feed_url)
 
             if parsed_feed.bozo:
@@ -145,6 +149,8 @@ def main() -> None:
             for entry in entries:
                 try:
                     doc = normalize_rss_entry(feed_url, entry)
+                    from kafka_producer import send_document
+
                     send_document(KAFKA_TOPIC, doc.model_dump())
                     save_document_jsonl("documents.jsonl", doc)
 
