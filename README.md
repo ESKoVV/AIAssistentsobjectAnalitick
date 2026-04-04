@@ -93,3 +93,61 @@ npm install
 npm run dev
 ```
 
+
+## Локальный запуск ingestion-пайплайна (Docker Compose)
+
+Добавлен полноценный стенд в `parser_project/docker-compose.yml`:
+- Kafka + Zookeeper + Kafka UI
+- PostgreSQL (с автоинициализацией схемы из `parser_project/sql/*.sql`)
+- `consumer`
+- `vk-collector`
+- `rss-collector`
+
+### 1) Подготовка окружения
+
+```bash
+cd parser_project
+cp .env.example .env
+```
+
+Проверьте/заполните минимум:
+- `VK_TOKEN`
+- `VK_GROUP_DOMAINS`
+- `RSS_FEEDS`
+
+Для Postgres можно оставить дефолты, либо задать:
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+
+### 2) Поднять весь стенд
+
+```bash
+docker compose up -d --build
+```
+
+### 3) Проверить состояние сервисов
+
+```bash
+docker compose ps
+```
+
+### 4) Смотреть логи
+
+```bash
+docker compose logs -f consumer
+docker compose logs -f vk-collector
+docker compose logs -f rss-collector
+```
+
+### 5) Остановить стенд
+
+```bash
+docker compose down
+```
+
+Если нужно удалить volume с БД:
+
+```bash
+docker compose down -v
+```
