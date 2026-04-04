@@ -5,7 +5,7 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Iterable, Sequence
 
 from apps.ml.ranking.source_urls import extract_source_url
