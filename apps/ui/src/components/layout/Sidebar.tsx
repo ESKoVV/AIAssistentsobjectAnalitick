@@ -1,12 +1,11 @@
-import { BarChart3, FileText, Home, ListTree, PieChart } from 'lucide-react';
+import { Activity, Home, ListTree, PieChart } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/', label: 'Обзор', icon: Home },
-  { to: '/feed', label: 'Лента', icon: FileText },
   { to: '/topics', label: 'Темы', icon: ListTree },
   { to: '/analytics', label: 'Аналитика', icon: PieChart },
-  { to: '/post/doc-2001', label: 'Пост', icon: BarChart3 }
+  { to: '/clusters/cluster-water-1', label: 'Карточка', icon: Activity }
 ];
 
 export const Sidebar = () => (

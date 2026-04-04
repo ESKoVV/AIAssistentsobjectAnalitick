@@ -1,0 +1,26 @@
+host: 0.0.0.0
+port: 8000
+api_version: v1
+cache_ttl_seconds: 300
+freshness_threshold_minutes: 30
+rankings_updated_topic: rankings.updated
+cors_allow_origins:
+  - "*"
+auth:
+  disabled: true
+  roles_claim: roles
+  role_claim: role
+urgency:
+  critical_growth_rate: 5.0
+  critical_new_size: 100
+  critical_geo_spread: 5
+  high_score_threshold: 0.7
+  medium_score_threshold: 0.4
+warmup_queries:
+  - period: "24h"
+    limit: 10
+  - period: "6h"
+    limit: 10
+  - period: "24h"
+    limit: 10
+    region: "Ростов-на-Дону"

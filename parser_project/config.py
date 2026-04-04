@@ -23,6 +23,9 @@ class ConfigError(RuntimeError):
 class AppConfig:
     kafka_bootstrap_servers: str
     kafka_topic: str
+    kafka_raw_topic: str
+    kafka_ml_topic: str
+    kafka_ml_results_topic: str
     kafka_group_id: str
     failed_messages_path: Path
 
@@ -114,9 +117,15 @@ def _text_env(name: str, default: str | None = None) -> str | None:
 
 
 def load_config() -> AppConfig:
+    legacy_kafka_topic = _text_env("KAFKA_TOPIC")
+    kafka_raw_topic = _text_env("KAFKA_RAW_TOPIC", legacy_kafka_topic or "raw.documents") or "raw.documents"
+
     return AppConfig(
         kafka_bootstrap_servers=_text_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092") or "localhost:9092",
-        kafka_topic=_text_env("KAFKA_TOPIC", "raw.documents") or "raw.documents",
+        kafka_topic=kafka_raw_topic,
+        kafka_raw_topic=kafka_raw_topic,
+        kafka_ml_topic=_text_env("KAFKA_ML_TOPIC", "ml.documents") or "ml.documents",
+        kafka_ml_results_topic=_text_env("KAFKA_ML_RESULTS_TOPIC", "ml.results") or "ml.results",
         kafka_group_id=_text_env("KAFKA_GROUP_ID", "documents-consumer-group") or "documents-consumer-group",
         failed_messages_path=Path(_text_env("FAILED_MESSAGES_PATH", "failed_messages.jsonl") or "failed_messages.jsonl"),
         database_url=_text_env("DATABASE_URL"),

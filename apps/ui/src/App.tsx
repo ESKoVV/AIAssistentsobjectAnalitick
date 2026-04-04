@@ -6,9 +6,8 @@ import { PageWrapper } from './components/layout/PageWrapper';
 import { Sidebar } from './components/layout/Sidebar';
 import { RegionConfirmModal } from './components/ui/RegionConfirmModal';
 import { Analytics } from './pages/Analytics';
+import { ClusterDetail } from './pages/ClusterDetail';
 import { Dashboard } from './pages/Dashboard';
-import { DocumentDetail } from './pages/DocumentDetail';
-import { Feed } from './pages/Feed';
 import { Topics } from './pages/Topics';
 import { getClosestRegion, REGION_POINTS } from './utils/regions';
 
@@ -59,10 +58,8 @@ function App() {
           <PageWrapper>
             <Routes>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/feed" element={<Feed />} />
               <Route path="/topics" element={<Topics />} />
-              <Route path="/post/:id" element={<DocumentDetail />} />
-              <Route path="/document/:id" element={<DocumentDetail />} />
+              <Route path="/clusters/:clusterId" element={<ClusterDetail />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

@@ -13,8 +13,11 @@ const iconBySource: Record<SourceType, JSX.Element> = {
   portal_appeal: <Globe size={14} />
 };
 
-export const SourceBadge = ({ sourceType }: { sourceType: SourceType }) => (
+const fallbackLabel = (sourceType: string) => sourceLabels[sourceType as SourceType] ?? sourceType;
+const fallbackIcon = (sourceType: string) => iconBySource[sourceType as SourceType] ?? <Globe size={14} />;
+
+export const SourceBadge = ({ sourceType }: { sourceType: string }) => (
   <span className="inline-flex items-center gap-1 rounded bg-slate-800 px-2 py-1 text-xs">
-    {iconBySource[sourceType]} {sourceLabels[sourceType]}
+    {fallbackIcon(sourceType)} {fallbackLabel(sourceType)}
   </span>
 );

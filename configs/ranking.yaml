@@ -1,1 +1,29 @@
-# TODO
+active_profile: monitoring
+documents_table: normalized_documents
+sentiments_table: document_sentiments
+input_topic: descriptions.updated
+output_topic: rankings.updated
+top_n: 10
+min_cluster_size_for_ranking: 10
+stale_after_hours: 48
+new_cluster_hours: 3
+growing_threshold: 2.0
+geo_max_coverage_ratio: 0.3
+source_type_count: 4
+schedule_interval_minutes: 15
+snapshot_period_hours: [6, 24, 72]
+weights:
+  monitoring:
+    volume: 0.25
+    dynamics: 0.25
+    sentiment: 0.20
+    reach: 0.15
+    geo: 0.10
+    source: 0.05
+  crisis:
+    volume: 0.20
+    dynamics: 0.30
+    sentiment: 0.25
+    reach: 0.15
+    geo: 0.07
+    source: 0.03
