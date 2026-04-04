@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from config import load_config, validate_max_config
 from id_builders import build_max_comment_doc_id, build_max_post_doc_id
 from kafka_producer import send_document
-from schema import MediaType, NormalizedDocument, SourceType
+from schema import RawDocument, SourceType
 
 CONFIG = load_config()
 
@@ -121,7 +121,21 @@ def _parse_datetime(value: Any) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> NormalizedDocument:
+def _created_at_raw(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def _extract_engagement(raw_item: dict[str, Any]) -> dict[str, Any]:
+    engagement_raw: dict[str, Any] = {}
+    for field in ("likes", "reposts", "comments_count", "replies_count", "reach"):
+        if field in raw_item and raw_item.get(field) is not None:
+            engagement_raw[field] = raw_item.get(field)
+    return engagement_raw
+
+
+def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> RawDocument:
     text = str(raw_post.get("text", "")).strip()
     if not text:
         raise ValueError("Пустой MAX-пост: text обязателен")
@@ -130,29 +144,27 @@ def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> Nor
     post_id = str(raw_post["id"])
     source_id = f"{channel_id}_{post_id}"
 
-    return NormalizedDocument(
+    return RawDocument(
         doc_id=build_max_post_doc_id(source_id),
-        source_type=SourceType.MAX_POST,
+        source_type=SourceType.MAX_POST.value,
         source_id=source_id,
-        parent_id=None,
-        text=text,
-        media_type=MediaType.TEXT,
+        parent_source_id=None,
+        text_raw=text,
+        title_raw=None,
+        author_raw=str(raw_post.get("author_id")) if raw_post.get("author_id") is not None else None,
+        created_at_raw=_created_at_raw(raw_post.get("created_at")),
         created_at=_parse_datetime(raw_post.get("created_at")),
         collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_post.get("author_id") or channel.get("owner_id") or "unknown"),
-        is_official=bool(raw_post.get("is_official", channel.get("is_official", False))),
-        reach=int(raw_post.get("reach", 0) or 0),
-        likes=int(raw_post.get("likes", 0) or 0),
-        reposts=int(raw_post.get("reposts", 0) or 0),
-        comments_count=int(raw_post.get("comments_count", 0) or 0),
-        region_hint=raw_post.get("region_hint") or channel.get("region_hint"),
-        geo_lat=raw_post.get("geo_lat"),
-        geo_lon=raw_post.get("geo_lon"),
+        source_url=None,
+        source_domain="max",
+        region_hint_raw=str(raw_post["region_hint"]) if "region_hint" in raw_post and raw_post["region_hint"] is not None else None,
+        geo_raw=raw_post.get("geo") if "geo" in raw_post else None,
+        engagement_raw=_extract_engagement(raw_post),
         raw_payload=raw_post,
     )
 
 
-def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, Any]) -> NormalizedDocument:
+def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, Any]) -> RawDocument:
     text = str(raw_comment.get("text", "")).strip()
     if not text:
         raise ValueError("Пустой MAX-комментарий: text обязателен")
@@ -163,31 +175,29 @@ def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, An
     comment_id = str(raw_comment["id"])
     source_id = f"{post_source_id}_{comment_id}"
 
-    return NormalizedDocument(
+    return RawDocument(
         doc_id=build_max_comment_doc_id(source_id),
-        source_type=SourceType.MAX_COMMENT,
+        source_type=SourceType.MAX_COMMENT.value,
         source_id=source_id,
-        parent_id=build_max_post_doc_id(post_source_id),
-        text=text,
-        media_type=MediaType.TEXT,
+        parent_source_id=post_source_id,
+        text_raw=text,
+        title_raw=None,
+        author_raw=str(raw_comment.get("author_id")) if raw_comment.get("author_id") is not None else None,
+        created_at_raw=_created_at_raw(raw_comment.get("created_at")),
         created_at=_parse_datetime(raw_comment.get("created_at")),
         collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_comment.get("author_id", "unknown")),
-        is_official=bool(raw_comment.get("is_official", False)),
-        reach=int(raw_comment.get("reach", 0) or 0),
-        likes=int(raw_comment.get("likes", 0) or 0),
-        reposts=0,
-        comments_count=int(raw_comment.get("replies_count", 0) or 0),
-        region_hint=raw_comment.get("region_hint") or parent_post.get("region_hint"),
-        geo_lat=raw_comment.get("geo_lat"),
-        geo_lon=raw_comment.get("geo_lon"),
+        source_url=None,
+        source_domain="max",
+        region_hint_raw=str(raw_comment["region_hint"]) if "region_hint" in raw_comment and raw_comment["region_hint"] is not None else None,
+        geo_raw=raw_comment.get("geo") if "geo" in raw_comment else None,
+        engagement_raw=_extract_engagement(raw_comment),
         raw_payload=raw_comment,
     )
 
 
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
+def save_document_jsonl(path: str, doc: RawDocument) -> None:
     with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc.model_dump(), ensure_ascii=False, default=str) + "\n")
+        f.write(json.dumps(doc.model_dump(mode="json"), ensure_ascii=False, default=str) + "\n")
 
 
 def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
@@ -209,7 +219,7 @@ def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
         for post in posts:
             try:
                 post_doc = normalize_max_post(post, channel)
-                send_document(kafka_topic, post_doc.model_dump())
+                send_document(kafka_topic, post_doc.model_dump(mode="json"))
                 save_document_jsonl(CONFIG.max_output_jsonl_path, post_doc)
                 total_sent += 1
             except Exception as post_error:
@@ -226,7 +236,7 @@ def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
             for comment in comments:
                 try:
                     comment_doc = normalize_max_comment(comment, post)
-                    send_document(kafka_topic, comment_doc.model_dump())
+                    send_document(kafka_topic, comment_doc.model_dump(mode="json"))
                     save_document_jsonl(CONFIG.max_output_jsonl_path, comment_doc)
                     total_sent += 1
                 except Exception as comment_error:

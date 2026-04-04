@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from config import _csv_env, load_config, validate_portal_config
 from id_builders import build_portal_appeal_doc_id
 from kafka_producer import send_document
-from schema import MediaType, NormalizedDocument, SourceType
+from schema import RawDocument, SourceType
 
 CONFIG = load_config()
 PORTAL_URLS = _csv_env("PORTAL_URLS")
@@ -35,10 +35,13 @@ class RawPortalAppeal:
     """Единый контракт обращения гражданина, полученного из любого портала."""
 
     appeal_id: str
-    text: str
-    created_at: datetime
-    region_hint: str
-    author_id: str
+    text_raw: str
+    title_raw: str | None
+    author_raw: str | None
+    created_at_raw: str | None
+    source_url: str | None
+    source_domain: str | None
+    region_hint_raw: str | None
     raw_payload: dict[str, Any]
 
 
@@ -117,16 +120,23 @@ class MockLocalFilePortalLoader(PortalAppealLoader):
         if not text:
             raise ValueError(f"У обращения {appeal_id} отсутствует обязательное поле text")
 
-        created_at = parse_datetime_or_now(row.get("created_at"))
-        region_hint = str(row.get("region_hint") or "unknown").strip() or "unknown"
-        author_id = str(row.get("author_id") or "anonymous").strip() or "anonymous"
+        source_url = row.get("article_url") or row.get("source_url")
+        source_url_str = str(source_url).strip() if source_url else None
+        source_domain = urlparse(source_url_str).netloc if source_url_str else None
+        if not source_domain:
+            source_domain = str(row.get("source_domain") or "").strip() or None
+
+        author_raw = row.get("author") or row.get("author_id") or source_domain
 
         return RawPortalAppeal(
             appeal_id=appeal_id,
-            text=text,
-            created_at=created_at,
-            region_hint=region_hint,
-            author_id=author_id,
+            text_raw=text,
+            title_raw=str(row.get("title")).strip() if row.get("title") is not None else None,
+            author_raw=str(author_raw).strip() if author_raw is not None else None,
+            created_at_raw=str(row.get("created_at")) if row.get("created_at") is not None else None,
+            source_url=source_url_str,
+            source_domain=source_domain,
+            region_hint_raw=str(row["region_hint"]).strip() if "region_hint" in row and row["region_hint"] is not None else None,
             raw_payload=row,
         )
 
@@ -195,16 +205,20 @@ class HtmlPortalLoader(PortalAppealLoader):
                         "portal_url": portal_url,
                         "article_url": article_url,
                         "title": title,
+                        "text": text,
                         "created_at": created_at_raw,
                         "keywords": self._keywords,
                     }
 
                     yield RawPortalAppeal(
                         appeal_id=appeal_id,
-                        text=f"{title}\n\n{text}".strip(),
-                        created_at=parse_datetime_or_now(created_at_raw),
-                        region_hint="rostov",
-                        author_id=urlparse(portal_url).netloc,
+                        text_raw=text,
+                        title_raw=title or None,
+                        author_raw=urlparse(portal_url).netloc or None,
+                        created_at_raw=created_at_raw,
+                        source_url=article_url,
+                        source_domain=urlparse(article_url).netloc or None,
+                        region_hint_raw=None,
                         raw_payload=payload,
                     )
                 except Exception as error:
@@ -311,36 +325,33 @@ def parse_datetime_or_now(value: Any) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def normalize_portal_appeal(appeal: RawPortalAppeal) -> NormalizedDocument:
-    """Нормализует обращение гражданина в единый контракт документа."""
-
+def normalize_portal_appeal(appeal: RawPortalAppeal) -> RawDocument:
     collected_at = datetime.now(timezone.utc)
+    created_at = parse_datetime_or_now(appeal.created_at_raw)
 
-    return NormalizedDocument(
+    return RawDocument(
         doc_id=build_portal_appeal_doc_id(appeal.appeal_id),
-        source_type=SourceType.PORTAL_APPEAL,
+        source_type=SourceType.PORTAL_APPEAL.value,
         source_id=appeal.appeal_id,
-        parent_id=None,
-        text=appeal.text,
-        media_type=MediaType.TEXT,
-        created_at=appeal.created_at,
+        parent_source_id=None,
+        text_raw=appeal.text_raw,
+        title_raw=appeal.title_raw,
+        author_raw=appeal.author_raw,
+        created_at_raw=appeal.created_at_raw,
+        created_at=created_at,
         collected_at=collected_at,
-        author_id=appeal.author_id or "anonymous",
-        is_official=False,
-        reach=0,
-        likes=0,
-        reposts=0,
-        comments_count=0,
-        region_hint=appeal.region_hint,
-        geo_lat=None,
-        geo_lon=None,
+        source_url=appeal.source_url,
+        source_domain=appeal.source_domain,
+        region_hint_raw=appeal.region_hint_raw,
+        geo_raw=None,
+        engagement_raw={},
         raw_payload=appeal.raw_payload,
     )
 
 
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
+def save_document_jsonl(path: str, doc: RawDocument) -> None:
     with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc.model_dump(), ensure_ascii=False, default=str) + "\n")
+        f.write(json.dumps(doc.model_dump(mode="json"), ensure_ascii=False, default=str) + "\n")
 
 
 def build_loader(source_name: str, **kwargs: Any) -> PortalAppealLoader:
@@ -397,10 +408,10 @@ def main() -> None:
     for appeal in loader.iter_appeals():
         try:
             doc = normalize_portal_appeal(appeal)
-            send_document(CONFIG.kafka_topic, doc.model_dump())
+            send_document(CONFIG.kafka_topic, doc.model_dump(mode="json"))
             save_document_jsonl("documents.jsonl", doc)
 
-            short_view = doc.model_dump()
+            short_view = doc.model_dump(mode="json")
             short_view.pop("raw_payload", None)
 
             print(json.dumps(short_view, ensure_ascii=False, indent=2, default=str))
