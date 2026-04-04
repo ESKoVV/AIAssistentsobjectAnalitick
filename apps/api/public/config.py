@@ -61,6 +61,7 @@ class APIConfig:
     port: int = 8000
     config_path: str = DEFAULT_CONFIG_PATH
     redis_dsn: str | None = None
+    documents_table: str = "normalized_documents"
     cache_ttl_seconds: int = 300
     freshness_threshold_minutes: int = 30
     kafka_bootstrap_servers: str | None = None
@@ -74,6 +75,8 @@ class APIConfig:
     def validate(self) -> None:
         if not self.database_url:
             raise ValueError("DATABASE_URL is required")
+        if not self.documents_table.strip():
+            raise ValueError("documents_table must be non-empty")
         if self.port <= 0:
             raise ValueError("port must be positive")
         if self.cache_ttl_seconds <= 0:
@@ -96,6 +99,10 @@ class APIConfig:
             port=int(os.getenv("API_PORT", payload.get("port", 8000))),
             config_path=config_path,
             redis_dsn=os.getenv("API_REDIS_DSN", payload.get("redis_dsn")) or None,
+            documents_table=(
+                os.getenv("API_DOCUMENTS_TABLE")
+                or str(payload.get("documents_table", "normalized_documents"))
+            ),
             cache_ttl_seconds=int(
                 os.getenv("API_CACHE_TTL_SECONDS", payload.get("cache_ttl_seconds", 300)),
             ),

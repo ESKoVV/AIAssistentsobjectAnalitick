@@ -1,2659 +1,354 @@
 Summary
-Добавил единый модуль parser_project/id_builders.py с детерминированными билдер-функциями doc_id для vk_post, vk_comment, rss_article, portal_appeal, max_post, max_comment (через общий UUID5 от source_type:source_id).
+В parser_project/config.py добавлены новые конфиги kafka_raw_topic, kafka_ml_topic, kafka_ml_results_topic в AppConfig, и реализована обратная совместимость: если задан старый KAFKA_TOPIC, он используется как fallback для KAFKA_RAW_TOPIC; при этом существующее поле kafka_topic сохранено и теперь указывает на итоговый raw topic, чтобы текущие коллекторы и consumer.py продолжили работать без изменений.
 
-Исправил normalize_vk_post: убран случайный uuid4, doc_id теперь стабильно строится из source_id (owner_id + post_id).
+В parser_project/create_topic.py обновлена логика: теперь создаются все три topic’а (raw, ml, ml results), добавлены понятные сообщения о списке topic’ов и статусе создания каждого, и сохранено безопасное поведение при уже существующем topic (TopicAlreadyExistsError не валит скрипт).
 
-Привёл parent_id к единому правилу для комментариев: теперь это doc_id родительского документа (VK/MAX), а не source_id родителя.
+В parser_project/.env.example добавлены новые переменные окружения KAFKA_RAW_TOPIC, KAFKA_ML_TOPIC, KAFKA_ML_RESULTS_TOPIC (старый KAFKA_TOPIC оставлен для совместимости).
 
-Обновил все затронутые нормализаторы ingestion-источников на единый подход к ID (vk, rss, portal_appeal, max).
+Изменённые файлы
+parser_project/config.py
 
-Добавил тесты на:
+parser_project/create_topic.py
 
-детерминированность doc_id при повторном запуске на одинаковом payload;
+parser_project/.env.example
 
-корректность parent_id у комментариев (ссылка на doc_id родителя).
-
-Полный код всех изменённых файлов
-parser_project/id_builders.py
-import uuid
-
-from schema import SourceType
-
-
-def build_doc_id(source_type: SourceType, source_id: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source_type.value}:{source_id}"))
-
-
-def build_vk_post_doc_id(source_id: str) -> str:
-    return build_doc_id(SourceType.VK_POST, source_id)
-
-
-def build_vk_comment_doc_id(source_id: str) -> str:
-    return build_doc_id(SourceType.VK_COMMENT, source_id)
-
-
-def build_rss_article_doc_id(source_id: str) -> str:
-    return build_doc_id(SourceType.RSS_ARTICLE, source_id)
-
-
-def build_portal_appeal_doc_id(source_id: str) -> str:
-    return build_doc_id(SourceType.PORTAL_APPEAL, source_id)
-
-
-def build_max_post_doc_id(source_id: str) -> str:
-    return build_doc_id(SourceType.MAX_POST, source_id)
-
-
-def build_max_comment_doc_id(source_id: str) -> str:
-    return build_doc_id(SourceType.MAX_COMMENT, source_id)
-parser_project/normalizers/vk.py
-from datetime import datetime, timezone
-
-from region_extractor import extract_geo, extract_region_hint
-from id_builders import build_vk_comment_doc_id, build_vk_post_doc_id
-from schema import MediaType, NormalizedDocument, SourceType
-
-
-def normalize_vk_post(raw_post: dict) -> NormalizedDocument:
-    text = raw_post.get("text", "")
-    if not text.strip():
-        raise ValueError("Пустой text: документ не создаём")
-
-    media_type = MediaType.TEXT
-
-    attachments = raw_post.get("attachments", [])
-    for attachment in attachments:
-        attachment_type = attachment.get("type")
-
-        if attachment_type == "photo":
-            media_type = MediaType.PHOTO
-            break
-        if attachment_type == "video":
-            media_type = MediaType.VIDEO
-            break
-        if attachment_type == "link":
-            media_type = MediaType.LINK
-            break
-
-    geo_lat, geo_lon = extract_geo(raw_post)
-
-    group_name = raw_post.get("signer_name") or raw_post.get("group", {}).get("name") or ""
-    text_for_region = "\n".join(part for part in (text, group_name) if part)
-    region_hint = extract_region_hint(text_for_region, raw_post)
-
-    source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
-
-    return NormalizedDocument(
-        doc_id=build_vk_post_doc_id(source_id),
-        source_type=SourceType.VK_POST,
-        source_id=source_id,
-        parent_id=None,
-        text=text,
-        media_type=media_type,
-        created_at=datetime.fromtimestamp(raw_post["date"], timezone.utc),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_post["from_id"]),
-        is_official=False,
-        reach=raw_post.get("views", {}).get("count", 0),
-        likes=raw_post.get("likes", {}).get("count", 0),
-        reposts=raw_post.get("reposts", {}).get("count", 0),
-        comments_count=raw_post.get("comments", {}).get("count", 0),
-        region_hint=region_hint,
-        geo_lat=geo_lat,
-        geo_lon=geo_lon,
-        raw_payload=raw_post,
-    )
-
-
-def normalize_vk_comment(raw_comment: dict, parent_post: dict) -> NormalizedDocument:
-    text = raw_comment.get("text", "")
-    if not text.strip():
-        raise ValueError("Пустой text комментария: документ не создаём")
-
-    owner_id = parent_post["owner_id"]
-    post_id = parent_post["id"]
-    comment_id = raw_comment["id"]
-
-    source_id = f"{owner_id}_{post_id}_{comment_id}"
-    parent_source_id = f"{owner_id}_{post_id}"
-    geo_lat, geo_lon = extract_geo(raw_comment)
-
-    return NormalizedDocument(
-        doc_id=build_vk_comment_doc_id(source_id),
-        source_type=SourceType.VK_COMMENT,
-        source_id=source_id,
-        parent_id=build_vk_post_doc_id(parent_source_id),
-        text=text,
-        media_type=MediaType.TEXT,
-        created_at=datetime.fromtimestamp(raw_comment["date"], timezone.utc),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_comment.get("from_id", "")),
-        is_official=False,
-        reach=0,
-        likes=raw_comment.get("likes", {}).get("count", 0),
-        reposts=0,
-        comments_count=raw_comment.get("thread", {}).get("count", 0),
-        region_hint=extract_region_hint(text, raw_comment),
-        geo_lat=geo_lat,
-        geo_lon=geo_lon,
-        raw_payload=raw_comment,
-    )
-parser_project/collect_rss.py
-import json
-import os
-import uuid
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
-from typing import Any
-
-from dotenv import load_dotenv
-
-from id_builders import build_rss_article_doc_id
-from region_extractor import extract_geo, extract_region_hint
-from schema import MediaType, NormalizedDocument, SourceType
-
-load_dotenv()
-
-RSS_FEEDS = os.getenv("RSS_FEEDS", "")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-
-
-def _parse_entry_datetime(entry: dict[str, Any]) -> datetime:
-    published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
-    if published_parsed:
-        return datetime(*published_parsed[:6], tzinfo=timezone.utc)
-
-    for field in ("published", "updated"):
-        raw_value = entry.get(field)
-        if not raw_value:
-            continue
-        try:
-            dt = parsedate_to_datetime(raw_value)
-            if dt.tzinfo is None:
-                return dt.replace(tzinfo=timezone.utc)
-            return dt.astimezone(timezone.utc)
-        except (TypeError, ValueError):
-            continue
-
-    return datetime.now(timezone.utc)
-
-
-def _build_source_id(feed_url: str, entry: dict[str, Any]) -> str:
-    preferred_id = entry.get("id") or entry.get("guid") or entry.get("link")
-    if preferred_id:
-        return str(preferred_id)
-
-    title = entry.get("title", "")
-    published = entry.get("published", "")
-    fallback_key = f"{feed_url}:{title}:{published}"
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, fallback_key))
-
-
-def _extract_text(entry: dict[str, Any]) -> str:
-    title = (entry.get("title") or "").strip()
-    summary = (entry.get("summary") or entry.get("description") or "").strip()
-
-    if title and summary:
-        return f"{title}\n\n{summary}"
-    if title:
-        return title
-    if summary:
-        return summary
-
-    content_items = entry.get("content") or []
-    for item in content_items:
-        value = (item.get("value") or "").strip()
-        if value:
-            return value
-
-    return ""
-
-
-def _to_raw_payload(entry: dict[str, Any]) -> dict[str, Any]:
-    return json.loads(json.dumps(entry, ensure_ascii=False, default=str))
-
-
-def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocument:
-    text = _extract_text(entry)
-    if not text.strip():
-        raise ValueError("Пустая RSS-запись: отсутствуют title/summary/content")
-
-    source_id = _build_source_id(feed_url, entry)
-    raw_payload = _to_raw_payload(entry)
-    geo_lat, geo_lon = extract_geo(raw_payload)
-    region_hint = extract_region_hint(text, raw_payload)
-
-    return NormalizedDocument(
-        doc_id=build_rss_article_doc_id(source_id),
-        source_type=SourceType.RSS_ARTICLE,
-        source_id=source_id,
-        parent_id=None,
-        text=text,
-        media_type=MediaType.LINK,
-        created_at=_parse_entry_datetime(entry),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(entry.get("author") or entry.get("source", {}).get("title") or "rss"),
-        is_official=False,
-        reach=0,
-        likes=0,
-        reposts=0,
-        comments_count=0,
-        region_hint=region_hint,
-        geo_lat=geo_lat,
-        geo_lon=geo_lon,
-        raw_payload=raw_payload,
-    )
-
-
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                doc.model_dump(),
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n"
-        )
-
-
-def main() -> None:
-    if not RSS_FEEDS.strip():
-        raise ValueError("Не найден RSS_FEEDS в .env")
-
-    feed_urls = [x.strip() for x in RSS_FEEDS.split(",") if x.strip()]
-
-    print("RSS-ленты для обхода:")
-    for feed_url in feed_urls:
-        print(f" - {feed_url}")
-    print("-" * 80)
-
-    total_sent = 0
-
-    for feed_url in feed_urls:
-        try:
-            import feedparser
-
-            parsed_feed = feedparser.parse(feed_url)
-
-            if parsed_feed.bozo:
-                bozo_exception = getattr(parsed_feed, "bozo_exception", "Unknown feed parsing error")
-                raise ValueError(f"Ошибка парсинга RSS: {bozo_exception}")
-
-            entries = parsed_feed.entries or []
-            print(f"[{feed_url}] Получено записей: {len(entries)}")
-
-            feed_sent = 0
-            for entry in entries:
-                try:
-                    doc = normalize_rss_entry(feed_url, entry)
-                    from kafka_producer import send_document
-
-                    send_document(KAFKA_TOPIC, doc.model_dump())
-                    save_document_jsonl("documents.jsonl", doc)
-
-                    short_view = doc.model_dump()
-                    short_view.pop("raw_payload", None)
-
-                    print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
-                    print("-" * 80)
-
-                    total_sent += 1
-                    feed_sent += 1
-                except Exception as entry_error:
-                    entry_id = entry.get("id") or entry.get("link") or "unknown"
-                    print(f"[{feed_url}] [entry={entry_id}] Ошибка обработки записи: {entry_error}")
-                    print("-" * 80)
-
-            print(f"[{feed_url}] Отправлено в Kafka: {feed_sent}")
-            print("-" * 80)
-
-        except Exception as feed_error:
-            print(f"[{feed_url}] Ошибка обработки RSS-ленты: {feed_error}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {total_sent}")
-
-
-if __name__ == "__main__":
-    main()
-parser_project/collect_portal_appeals.py
-import json
-import os
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Iterable
-
-from dotenv import load_dotenv
-
-from id_builders import build_portal_appeal_doc_id
-from kafka_producer import send_document
-from schema import MediaType, NormalizedDocument, SourceType
-
-load_dotenv()
-
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-PORTAL_SOURCE = os.getenv("PORTAL_SOURCE", "mock_local_file")
-PORTAL_NAME = os.getenv("PORTAL_NAME", "mock_portal")
-PORTAL_APPEALS_FILE = os.getenv("PORTAL_APPEALS_FILE", "portal_appeals.jsonl")
-
-
-@dataclass(frozen=True)
-class RawPortalAppeal:
-    """Единый контракт обращения гражданина, полученного из любого портала."""
-
-    appeal_id: str
-    text: str
-    created_at: datetime
-    region_hint: str
-    author_id: str
-    raw_payload: dict[str, Any]
-
-
-class PortalAppealLoader(ABC):
-    """Базовый интерфейс загрузчика обращений с порталов."""
-
-    @abstractmethod
-    def iter_appeals(self) -> Iterable[RawPortalAppeal]:
-        """Возвращает поток сырых обращений портала."""
-
-
-class MockLocalFilePortalLoader(PortalAppealLoader):
-    """Демо-источник: читает обращения из локального json/jsonl файла."""
-
-    def __init__(self, file_path: str):
-        self._file_path = Path(file_path)
-
-    def iter_appeals(self) -> Iterable[RawPortalAppeal]:
-        if not self._file_path.exists():
-            raise FileNotFoundError(f"Файл обращений не найден: {self._file_path}")
-
-        rows = self._read_rows(self._file_path)
-        for row in rows:
-            yield self._to_raw_appeal(row)
-
-    @staticmethod
-    def _read_rows(file_path: Path) -> Iterable[dict[str, Any]]:
-        ext = file_path.suffix.lower()
-
-        if ext == ".jsonl":
-            with file_path.open("r", encoding="utf-8") as f:
-                for line_number, line in enumerate(f, start=1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        yield json.loads(line)
-                    except json.JSONDecodeError as error:
-                        raise ValueError(f"Некорректный JSONL в строке {line_number}: {error}") from error
-            return
-
-        if ext == ".json":
-            with file_path.open("r", encoding="utf-8") as f:
-                payload = json.load(f)
-
-            if isinstance(payload, dict):
-                items = payload.get("items")
-                if isinstance(items, list):
-                    for item in items:
-                        if isinstance(item, dict):
-                            yield item
-                        else:
-                            raise ValueError("Поле items должно содержать объекты обращений")
-                    return
-                raise ValueError("JSON-объект должен содержать список обращений в поле 'items'")
-
-            if isinstance(payload, list):
-                for item in payload:
-                    if isinstance(item, dict):
-                        yield item
-                    else:
-                        raise ValueError("JSON-массив должен содержать объекты обращений")
-                return
-
-            raise ValueError("JSON должен быть массивом обращений или объектом с полем 'items'")
-
-        raise ValueError("Поддерживаются только файлы .json и .jsonl")
-
-    @staticmethod
-    def _to_raw_appeal(row: dict[str, Any]) -> RawPortalAppeal:
-        appeal_id = str(row.get("id") or "").strip()
-        if not appeal_id:
-            raise ValueError("У обращения отсутствует обязательное поле id")
-
-        text = str(row.get("text") or "").strip()
-        if not text:
-            raise ValueError(f"У обращения {appeal_id} отсутствует обязательное поле text")
-
-        created_at = parse_datetime_or_now(row.get("created_at"))
-        region_hint = str(row.get("region_hint") or "unknown").strip() or "unknown"
-        author_id = str(row.get("author_id") or "anonymous").strip() or "anonymous"
-
-        return RawPortalAppeal(
-            appeal_id=appeal_id,
-            text=text,
-            created_at=created_at,
-            region_hint=region_hint,
-            author_id=author_id,
-            raw_payload=row,
-        )
-
-
-def parse_datetime_or_now(value: Any) -> datetime:
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
-
-    if isinstance(value, str) and value.strip():
-        raw = value.strip().replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(raw)
-            if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=timezone.utc)
-            return parsed.astimezone(timezone.utc)
-        except ValueError:
-            pass
-
-    return datetime.now(timezone.utc)
-
-
-def normalize_portal_appeal(appeal: RawPortalAppeal) -> NormalizedDocument:
-    """Нормализует обращение гражданина в единый контракт документа."""
-
-    collected_at = datetime.now(timezone.utc)
-
-    return NormalizedDocument(
-        doc_id=build_portal_appeal_doc_id(appeal.appeal_id),
-        source_type=SourceType.PORTAL_APPEAL,
-        source_id=appeal.appeal_id,
-        parent_id=None,
-        text=appeal.text,
-        media_type=MediaType.TEXT,
-        created_at=appeal.created_at,
-        collected_at=collected_at,
-        author_id=appeal.author_id or "anonymous",
-        is_official=False,
-        reach=0,
-        likes=0,
-        reposts=0,
-        comments_count=0,
-        region_hint=appeal.region_hint,
-        geo_lat=None,
-        geo_lon=None,
-        raw_payload=appeal.raw_payload,
-    )
-
-
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc.model_dump(), ensure_ascii=False, default=str) + "\n")
-
-
-def build_loader(source_name: str, **kwargs: Any) -> PortalAppealLoader:
-    """
-    Фабрика загрузчиков по типу источника.
-
-    TODO: Добавить реализации для production-порталов (API, auth, pagination, retries).
-    """
-
-    if source_name == "mock_local_file":
-        file_path = kwargs.get("file_path")
-        if not file_path:
-            raise ValueError("Для mock_local_file требуется file_path")
-        return MockLocalFilePortalLoader(file_path=file_path)
-
-    raise ValueError(f"Неизвестный тип источника PORTAL_SOURCE: {source_name}")
-
-
-def main() -> None:
-    loader = build_loader(PORTAL_SOURCE, file_path=PORTAL_APPEALS_FILE)
-
-    print(f"Источник обращений: {PORTAL_SOURCE}")
-    print(f"Портал: {PORTAL_NAME}")
-    if PORTAL_SOURCE == "mock_local_file":
-        print(f"Файл: {PORTAL_APPEALS_FILE}")
-    print("-" * 80)
-
-    sent = 0
-
-    for appeal in loader.iter_appeals():
-        try:
-            doc = normalize_portal_appeal(appeal)
-            send_document(KAFKA_TOPIC, doc.model_dump())
-            save_document_jsonl("documents.jsonl", doc)
-
-            short_view = doc.model_dump()
-            short_view.pop("raw_payload", None)
-
-            print(json.dumps(short_view, ensure_ascii=False, indent=2, default=str))
-            print("-" * 80)
-            sent += 1
-        except Exception as error:
-            print(f"[portal={PORTAL_NAME}] [appeal_id={appeal.appeal_id}] Ошибка обработки: {error}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {sent}")
-
-
-if __name__ == "__main__":
-    main()
-parser_project/collect_max_messages.py
-import json
-import logging
-import os
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Protocol
-
-from dotenv import load_dotenv
-
-from id_builders import build_max_comment_doc_id, build_max_post_doc_id
-from kafka_producer import send_document
-from schema import MediaType, NormalizedDocument, SourceType
-
-load_dotenv()
-
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-MAX_MOCK_DATA_PATH = os.getenv("MAX_MOCK_DATA_PATH", "parser_project/mock/max_messages.json")
-MAX_OUTPUT_JSONL_PATH = os.getenv("MAX_OUTPUT_JSONL_PATH", "documents.jsonl")
-
-logger = logging.getLogger("collect_max_messages")
-
-
-class MaxClient(Protocol):
-    """Интерфейс клиента MAX.
-
-    TODO: при подключении реального API вынести контракт в отдельный модуль и
-    добавить реализацию с auth/retry/rate-limit.
-    """
-
-    def get_channels(self) -> list[dict[str, Any]]:
-        """Возвращает список каналов."""
-
-    def get_posts(self, channel_id: str) -> list[dict[str, Any]]:
-        """Возвращает посты по каналу."""
-
-    def get_comments(self, post_id: str) -> list[dict[str, Any]]:
-        """Возвращает комментарии/ответы по посту."""
-
-
-class MockMaxClient:
-    """Mock-реализация MAX-клиента поверх локального JSON.
-
-    Поддерживаемые форматы файла:
-    1) Плоский:
-       {
-         "channels": [...],
-         "posts": [...],
-         "comments": [...]
-       }
-    2) Вложенный:
-       {
-         "channels": [
-           {"id": "...", "posts": [{..., "comments": [...]}]}
-         ]
-       }
-    """
-
-    def __init__(self, json_path: str) -> None:
-        self._json_path = Path(json_path)
-        self._data = self._load_data(self._json_path)
-
-    @staticmethod
-    def _load_data(path: Path) -> dict[str, Any]:
-        if not path.exists():
-            raise FileNotFoundError(f"MAX mock file not found: {path}")
-        with path.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-        if not isinstance(payload, dict):
-            raise ValueError("MAX mock JSON должен быть объектом")
-        return payload
-
-    def get_channels(self) -> list[dict[str, Any]]:
-        channels = self._data.get("channels", [])
-        if not isinstance(channels, list):
-            raise ValueError("MAX mock JSON: поле channels должно быть списком")
-        return channels
-
-    def get_posts(self, channel_id: str) -> list[dict[str, Any]]:
-        if isinstance(self._data.get("posts"), list):
-            return [p for p in self._data["posts"] if str(p.get("channel_id")) == str(channel_id)]
-
-        posts: list[dict[str, Any]] = []
-        for channel in self.get_channels():
-            if str(channel.get("id")) != str(channel_id):
-                continue
-            for post in channel.get("posts", []):
-                post_copy = dict(post)
-                post_copy.setdefault("channel_id", channel_id)
-                posts.append(post_copy)
-        return posts
-
-    def get_comments(self, post_id: str) -> list[dict[str, Any]]:
-        if isinstance(self._data.get("comments"), list):
-            return [c for c in self._data["comments"] if str(c.get("post_id")) == str(post_id)]
-
-        comments: list[dict[str, Any]] = []
-        for channel in self.get_channels():
-            for post in channel.get("posts", []):
-                if str(post.get("id")) != str(post_id):
-                    continue
-                for comment in post.get("comments", []):
-                    comment_copy = dict(comment)
-                    comment_copy.setdefault("post_id", post_id)
-                    comments.append(comment_copy)
-        return comments
-
-
-# TODO: подключить здесь реальный MAX HTTP/SDK клиент и оставить Mock как fallback.
-# class RealMaxClient(MaxClient):
-#     ...
-
-
-def _parse_datetime(value: Any) -> datetime:
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, timezone.utc)
-    if isinstance(value, str):
-        candidate = value.strip()
-        if candidate.endswith("Z"):
-            candidate = candidate[:-1] + "+00:00"
-        try:
-            dt = datetime.fromisoformat(candidate)
-            if dt.tzinfo is None:
-                return dt.replace(tzinfo=timezone.utc)
-            return dt.astimezone(timezone.utc)
-        except ValueError:
-            logger.warning("Не удалось распарсить created_at=%s, используем текущее timezone.utc", value)
-    return datetime.now(timezone.utc)
-
-
-def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> NormalizedDocument:
-    text = str(raw_post.get("text", "")).strip()
-    if not text:
-        raise ValueError("Пустой MAX-пост: text обязателен")
-
-    channel_id = str(raw_post.get("channel_id") or channel.get("id"))
-    post_id = str(raw_post["id"])
-    source_id = f"{channel_id}_{post_id}"
-
-    return NormalizedDocument(
-        doc_id=build_max_post_doc_id(source_id),
-        source_type=SourceType.MAX_POST,
-        source_id=source_id,
-        parent_id=None,
-        text=text,
-        media_type=MediaType.TEXT,
-        created_at=_parse_datetime(raw_post.get("created_at")),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_post.get("author_id") or channel.get("owner_id") or "unknown"),
-        is_official=bool(raw_post.get("is_official", channel.get("is_official", False))),
-        reach=int(raw_post.get("reach", 0) or 0),
-        likes=int(raw_post.get("likes", 0) or 0),
-        reposts=int(raw_post.get("reposts", 0) or 0),
-        comments_count=int(raw_post.get("comments_count", 0) or 0),
-        region_hint=raw_post.get("region_hint") or channel.get("region_hint"),
-        geo_lat=raw_post.get("geo_lat"),
-        geo_lon=raw_post.get("geo_lon"),
-        raw_payload=raw_post,
-    )
-
-
-def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, Any]) -> NormalizedDocument:
-    text = str(raw_comment.get("text", "")).strip()
-    if not text:
-        raise ValueError("Пустой MAX-комментарий: text обязателен")
-
-    parent_channel_id = str(parent_post.get("channel_id") or "")
-    parent_post_id = str(parent_post.get("id"))
-    post_source_id = f"{parent_channel_id}_{parent_post_id}" if parent_channel_id else parent_post_id
-    comment_id = str(raw_comment["id"])
-    source_id = f"{post_source_id}_{comment_id}"
-
-    return NormalizedDocument(
-        doc_id=build_max_comment_doc_id(source_id),
-        source_type=SourceType.MAX_COMMENT,
-        source_id=source_id,
-        parent_id=build_max_post_doc_id(post_source_id),
-        text=text,
-        media_type=MediaType.TEXT,
-        created_at=_parse_datetime(raw_comment.get("created_at")),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_comment.get("author_id", "unknown")),
-        is_official=bool(raw_comment.get("is_official", False)),
-        reach=int(raw_comment.get("reach", 0) or 0),
-        likes=int(raw_comment.get("likes", 0) or 0),
-        reposts=0,
-        comments_count=int(raw_comment.get("replies_count", 0) or 0),
-        region_hint=raw_comment.get("region_hint") or parent_post.get("region_hint"),
-        geo_lat=raw_comment.get("geo_lat"),
-        geo_lon=raw_comment.get("geo_lon"),
-        raw_payload=raw_comment,
-    )
-
-
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc.model_dump(), ensure_ascii=False, default=str) + "\n")
-
-
-def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
-    total_sent = 0
-
-    channels = client.get_channels()
-    logger.info("Получено каналов MAX: %d", len(channels))
-
-    for channel in channels:
-        channel_id = str(channel.get("id"))
-        if not channel_id:
-            logger.warning("Пропускаем канал без id: %s", channel)
-            continue
-
-        logger.info("Обрабатываем канал=%s", channel_id)
-        posts = client.get_posts(channel_id)
-        logger.info("Канал=%s, постов=%d", channel_id, len(posts))
-
-        for post in posts:
-            try:
-                post_doc = normalize_max_post(post, channel)
-                send_document(kafka_topic, post_doc.model_dump())
-                save_document_jsonl(MAX_OUTPUT_JSONL_PATH, post_doc)
-                total_sent += 1
-            except Exception as post_error:
-                logger.exception("Ошибка нормализации/отправки поста channel=%s: %s", channel_id, post_error)
-                continue
-
-            post_id = str(post.get("id"))
-            if not post_id:
-                continue
-
-            comments = client.get_comments(post_id)
-            logger.info("Канал=%s, пост=%s, комментариев=%d", channel_id, post_id, len(comments))
-
-            for comment in comments:
-                try:
-                    comment_doc = normalize_max_comment(comment, post)
-                    send_document(kafka_topic, comment_doc.model_dump())
-                    save_document_jsonl(MAX_OUTPUT_JSONL_PATH, comment_doc)
-                    total_sent += 1
-                except Exception as comment_error:
-                    logger.exception(
-                        "Ошибка нормализации/отправки комментария channel=%s post=%s: %s",
-                        channel_id,
-                        post_id,
-                        comment_error,
-                    )
-
-    return total_sent
-
-
-def main() -> None:
-    logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO"),
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    )
-
-    logger.info("Запуск сборщика MAX (mock mode)")
-    logger.info("Kafka topic=%s", KAFKA_TOPIC)
-    logger.info("Mock data path=%s", MAX_MOCK_DATA_PATH)
-
-    # TODO: заменить фабрику клиента на переключение mock/real через env-флаг.
-    client: MaxClient = MockMaxClient(MAX_MOCK_DATA_PATH)
-
-    total = process_max_messages(client, KAFKA_TOPIC)
-    logger.info("MAX ingest завершён, отправлено сообщений=%d", total)
-
-
-if __name__ == "__main__":
-    main()
-parser_project/tests/test_ingestion_ids.py
-import sys
-import types
-from datetime import datetime, timezone
-
-sys.modules.setdefault("kafka_producer", types.SimpleNamespace(send_document=lambda *args, **kwargs: None))
-
-from collect_max_messages import normalize_max_comment, normalize_max_post
-from collect_portal_appeals import RawPortalAppeal, normalize_portal_appeal
-from collect_rss import normalize_rss_entry
-from id_builders import build_max_post_doc_id, build_vk_post_doc_id
-from normalizers.vk import normalize_vk_comment, normalize_vk_post
-
-
-def test_doc_id_is_deterministic_for_same_payload_across_sources() -> None:
-    raw_vk_post = {
-        "id": 101,
-        "owner_id": 42,
-        "from_id": 42,
-        "date": 1712150000,
-        "text": "Повторный запуск должен дать тот же ID",
-        "views": {"count": 10},
-        "likes": {"count": 1},
-        "reposts": {"count": 0},
-        "comments": {"count": 0},
-    }
-    vk_doc_first = normalize_vk_post(raw_vk_post)
-    vk_doc_second = normalize_vk_post(raw_vk_post)
-    assert vk_doc_first.doc_id == vk_doc_second.doc_id
-
-    rss_entry = {
-        "id": "article-1",
-        "title": "Новость",
-        "summary": "Краткий текст",
-        "published": "Wed, 03 Apr 2024 10:00:00 +0300",
-    }
-    rss_doc_first = normalize_rss_entry("https://example.com/rss", rss_entry)
-    rss_doc_second = normalize_rss_entry("https://example.com/rss", rss_entry)
-    assert rss_doc_first.doc_id == rss_doc_second.doc_id
-
-    appeal = RawPortalAppeal(
-        appeal_id="appeal-77",
-        text="Не работает освещение",
-        created_at=datetime(2024, 4, 3, 8, 0, tzinfo=timezone.utc),
-        region_hint="Ростовская область",
-        author_id="citizen-1",
-        raw_payload={"id": "appeal-77", "text": "Не работает освещение"},
-    )
-    portal_doc_first = normalize_portal_appeal(appeal)
-    portal_doc_second = normalize_portal_appeal(appeal)
-    assert portal_doc_first.doc_id == portal_doc_second.doc_id
-
-    channel = {"id": "channel-1", "owner_id": "owner-1"}
-    max_post = {
-        "id": "post-1",
-        "channel_id": "channel-1",
-        "text": "MAX пост",
-        "created_at": "2024-04-03T10:00:00+00:00",
-    }
-    max_post_first = normalize_max_post(max_post, channel)
-    max_post_second = normalize_max_post(max_post, channel)
-    assert max_post_first.doc_id == max_post_second.doc_id
-
-    max_comment = {
-        "id": "comment-1",
-        "text": "MAX комментарий",
-        "created_at": "2024-04-03T10:05:00+00:00",
-    }
-    max_comment_first = normalize_max_comment(max_comment, max_post)
-    max_comment_second = normalize_max_comment(max_comment, max_post)
-    assert max_comment_first.doc_id == max_comment_second.doc_id
-
-    vk_comment = {
-        "id": 555,
-        "from_id": 101,
-        "date": 1712150300,
-        "text": "Комментарий VK",
-        "likes": {"count": 2},
-        "thread": {"count": 0},
-    }
-    vk_comment_first = normalize_vk_comment(vk_comment, raw_vk_post)
-    vk_comment_second = normalize_vk_comment(vk_comment, raw_vk_post)
-    assert vk_comment_first.doc_id == vk_comment_second.doc_id
-
-
-def test_comment_parent_id_points_to_parent_doc_id() -> None:
-    raw_vk_post = {
-        "id": 202,
-        "owner_id": 33,
-        "from_id": 33,
-        "date": 1712150000,
-        "text": "Родительский VK пост",
-        "views": {"count": 3},
-        "likes": {"count": 1},
-        "reposts": {"count": 0},
-        "comments": {"count": 1},
-    }
-    vk_comment = {
-        "id": 900,
-        "from_id": 34,
-        "date": 1712150400,
-        "text": "Дочерний VK комментарий",
-        "likes": {"count": 0},
-        "thread": {"count": 0},
-    }
-    vk_comment_doc = normalize_vk_comment(vk_comment, raw_vk_post)
-    assert vk_comment_doc.parent_id == build_vk_post_doc_id("33_202")
-
-    max_parent_post = {
-        "id": "post-77",
-        "channel_id": "channel-55",
-        "text": "Родительский MAX пост",
-        "created_at": "2024-04-03T10:00:00+00:00",
-    }
-    max_comment = {
-        "id": "comment-77",
-        "text": "Дочерний MAX комментарий",
-        "created_at": "2024-04-03T10:15:00+00:00",
-    }
-    max_comment_doc = normalize_max_comment(max_comment, max_parent_post)
-    assert max_comment_doc.parent_id == build_max_post_doc_id("channel-55_post-77")
-Testing
-✅ pytest -q parser_project/tests/test_ingestion_ids.py parser_project/tests/test_source_normalization_geo_region.py
-
-Дополнительно: коммит уже сделан и PR-сообщение через make_pr создано.
-
-2)
-Summary
-Добавил новые env-параметры VK_POSTS_PER_GROUP и VK_PAGE_SIZE с валидацией значений (> 0).
-
-Реализовал полноценную пагинацию VK-постов через offset в цикле по страницам wall.get, с остановкой при достижении лимита постов на группу или при окончании новых постов.
-
-Сохранил текущую логику нормализации, Kafka ingestion и сбор комментариев для каждого поста (без удаления comments ingestion).
-
-Добавил логирование по каждой группе/странице: offset, сколько постов получено и сколько отправлено, плюс итог по группе; обработка ошибок одной группы не останавливает остальные группы.
-
-Полный код изменённого файла
-import json
-import os
-
-from dotenv import load_dotenv
-
-from kafka_producer import send_document
-from normalizers.vk import normalize_vk_comment, normalize_vk_post
-from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
-
-load_dotenv()
-
-VK_GROUP_DOMAINS = os.getenv("VK_GROUP_DOMAINS", "")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-VK_POSTS_PER_GROUP = int(os.getenv("VK_POSTS_PER_GROUP", "100"))
-VK_PAGE_SIZE = int(os.getenv("VK_PAGE_SIZE", "20"))
-
-
-def get_group_owner_id(screen_name: str) -> int:
-    resolved = resolve_screen_name(screen_name)
-
-    obj_type = resolved.get("type")
-    object_id = resolved.get("object_id")
-
-    if obj_type not in ("group", "page", "event"):
-        raise ValueError(f"{screen_name}: это не группа/паблик/ивент, а {obj_type}")
-
-    if object_id is None:
-        raise ValueError(f"{screen_name}: не удалось получить object_id")
-
-    return -int(object_id)
-
-
-def save_document_jsonl(path: str, doc) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                doc.model_dump(),
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n"
-        )
-
-
-def main():
-    if not VK_GROUP_DOMAINS.strip():
-        raise ValueError("Не найден VK_GROUP_DOMAINS в .env")
-    if VK_POSTS_PER_GROUP <= 0:
-        raise ValueError("VK_POSTS_PER_GROUP должен быть > 0")
-    if VK_PAGE_SIZE <= 0:
-        raise ValueError("VK_PAGE_SIZE должен быть > 0")
-
-    group_domains = [x.strip() for x in VK_GROUP_DOMAINS.split(",") if x.strip()]
-
-    print("Группы для обхода:")
-    for domain in group_domains:
-        print(f" - {domain}")
-    print("-" * 80)
-
-    total_sent = 0
-
-    for domain in group_domains:
-        try:
-            owner_id = get_group_owner_id(domain)
-            print(f"[{domain}] owner_id = {owner_id}")
-
-            group_posts_sent = 0
-            group_comments_sent = 0
-            offset = 0
-
-            while group_posts_sent < VK_POSTS_PER_GROUP:
-                remaining_posts = VK_POSTS_PER_GROUP - group_posts_sent
-                page_size = min(VK_PAGE_SIZE, remaining_posts)
-
-                raw_posts = get_wall_posts(owner_id, count=page_size, offset=offset)
-                page_posts_received = len(raw_posts)
-                page_posts_sent = 0
-
-                print(
-                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
-                    f"отправлено постов: {page_posts_sent}"
-                )
-
-                if not raw_posts:
-                    print(f"[{domain}] Посты закончились (offset={offset}).")
-                    break
-
-                for raw_post in raw_posts:
-                    if group_posts_sent >= VK_POSTS_PER_GROUP:
-                        break
-
-                    text = raw_post.get("text", "")
-                    if not text.strip():
-                        continue
-
-                    doc = normalize_vk_post(raw_post)
-
-                    send_document(KAFKA_TOPIC, doc.model_dump())
-                    save_document_jsonl("documents.jsonl", doc)
-
-                    short_view = doc.model_dump()
-                    short_view.pop("raw_payload", None)
-
-                    print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
-                    print("-" * 80)
-
-                    total_sent += 1
-                    group_posts_sent += 1
-                    page_posts_sent += 1
-
-                    post_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
-                    try:
-                        raw_comments = get_post_comments(
-                            owner_id=raw_post["owner_id"],
-                            post_id=raw_post["id"],
-                        )
-                        print(f"[{domain}] [{post_source_id}] Получено комментариев: {len(raw_comments)}")
-
-                        post_comments_sent = 0
-                        for raw_comment in raw_comments:
-                            comment_text = raw_comment.get("text", "")
-                            if not comment_text.strip():
-                                continue
-
-                            comment_doc = normalize_vk_comment(raw_comment, raw_post)
-                            send_document(KAFKA_TOPIC, comment_doc.model_dump())
-                            save_document_jsonl("documents.jsonl", comment_doc)
-                            total_sent += 1
-                            post_comments_sent += 1
-                            group_comments_sent += 1
-
-                        print(f"[{domain}] [{post_source_id}] Отправлено комментариев: {post_comments_sent}")
-                        print("-" * 80)
-                    except Exception as e:
-                        print(f"[{domain}] [{post_source_id}] Ошибка сбора комментариев: {e}")
-                        print("-" * 80)
-
-                print(
-                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
-                    f"отправлено постов: {page_posts_sent}"
-                )
-                print("-" * 80)
-
-                offset += page_posts_received
-
-                if page_posts_received < page_size:
-                    print(f"[{domain}] Достигнут конец стены (offset={offset}).")
-                    break
-
-            print(
-                f"[{domain}] Итого отправлено: постов={group_posts_sent}, "
-                f"комментариев={group_comments_sent}, всего={group_posts_sent + group_comments_sent}"
-            )
-            print("-" * 80)
-
-        except Exception as e:
-            print(f"[{domain}] Ошибка: {e}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {total_sent}")
-
-
-if __name__ == "__main__":
-    main()
 Testing
 
-✅ python -m py_compile parser_project/collect_vk_posts.py
+✅ python -m py_compile parser_project/config.py parser_project/create_topic.py
 
-Дополнительно: изменения закоммичены (b963864) и PR-сообщение сформировано через make_pr.
+
+2)Summary
+В consumer.py добавил публикацию документа в ML topic только после успешного upsert_document(document): сначала валидация и запись в Postgres, затем формирование ml_payload с минимально нужными полями и отправка в Kafka. 
+
+Реализовал отдельную обработку ошибок отправки в ML topic: при ошибке логируется сообщение, вызывается существующий save_failed_message(...), и процесс не падает. 
+
+Логику ValidationError/общей ошибки обработки не ломал — внешний except (ValidationError, Exception) сохранён. 
+
+В kafka_producer.py аккуратно расширил API: добавил send_document_to_ml_topic(document), который использует CONFIG.kafka_ml_topic (то есть KAFKA_ML_TOPIC из конфига). 
+
+Ключевой diff
+diff --git a/parser_project/consumer.py b/parser_project/consumer.py
+@@
+-from db import upsert_document
++from db import upsert_document
++from kafka_producer import send_document_to_ml_topic
+@@
+                 document = NormalizedDocument.model_validate(raw_data)
+                 upsert_document(document)
+                 print(f"✅ Сохранен документ в PostgreSQL: {document.doc_id}")
++                ml_payload = {
++                    "doc_id": document.doc_id,
++                    "source_type": document.source_type,
++                    "source_id": document.source_id,
++                    "text": document.text,
++                    "created_at": document.created_at,
++                    "collected_at": document.collected_at,
++                    "author_id": document.author_id,
++                    "is_official": document.is_official,
++                    "reach": document.reach,
++                    "likes": document.likes,
++                    "reposts": document.reposts,
++                    "comments_count": document.comments_count,
++                    "region_hint": document.region_hint,
++                    "geo_lat": document.geo_lat,
++                    "geo_lon": document.geo_lon,
++                    "raw_payload": document.raw_payload,
++                }
++                try:
++                    send_document_to_ml_topic(ml_payload)
++                    print(f"✅ Отправлен документ в ML topic {CONFIG.kafka_ml_topic}: {document.doc_id}")
++                except Exception as exc:
++                    print(f"❌ Ошибка отправки в ML topic offset={message.offset}: {exc}")
++                    save_failed_message(raw_data, f"ML topic publish error: {exc}")
+
+diff --git a/parser_project/kafka_producer.py b/parser_project/kafka_producer.py
+@@
+ def send_document(topic: str, document: dict) -> None:
+     producer.send(topic, document)
+     producer.flush()
++
++def send_document_to_ml_topic(document: dict) -> None:
++    send_document(CONFIG.kafka_ml_topic, document)
+Список изменённых файлов
+parser_project/consumer.py
+
+parser_project/kafka_producer.py
+
+Testing
+
+✅ python -m compileall parser_project/consumer.py parser_project/kafka_producer.py
+
+✅ git commit -m "Publish persisted documents to ML Kafka topic" (commit: e9ec272)
+
+
 
 3)Summary
-Добавил переменную окружения DAYS_BACK (по умолчанию 7) в оба ingestion-скрипта и валидацию, что значение неотрицательное. 
+Создал новый idempotent SQL-файл parser_project/sql/003_create_ml_results.sql с таблицей ml_results и всеми требуемыми полями, включая doc_id с FK на normalized_documents(doc_id) и ON DELETE CASCADE, а также raw_result JSONB NOT NULL DEFAULT '{}'::jsonb.
 
-В collect_vk_posts.py добавил фильтрацию постов и комментариев по created_at из данных VK (raw_item["date"]), без изменения collected_at. 
+Добавил индексы idx_ml_results_processed_at, idx_ml_results_status, idx_ml_results_category (все через IF NOT EXISTS, чтобы повторный запуск был безопасным).
 
-В collect_rss.py добавил фильтрацию RSS-записей по created_at (из source-полей published/updated через _parse_entry_datetime), collected_at не менял. 
+Обновил parser_project/apply_schema.py: теперь он применяет все *.sql из parser_project/sql в лексикографическом порядке (001, 002, 003), что гарантирует правильную последовательность миграций и расширяемость без правки кода под каждый новый файл.
 
-Добавил логирование cutoff, количества отброшенных «старых» документов и количества отправленных после фильтрации (VK и RSS). 
+Полный SQL-файл 003_create_ml_results.sql
+CREATE TABLE IF NOT EXISTS ml_results (
+    doc_id TEXT PRIMARY KEY REFERENCES normalized_documents (doc_id) ON DELETE CASCADE,
+    summary TEXT NULL,
+    score DOUBLE PRECISION NULL,
+    category TEXT NULL,
+    model_version TEXT NULL,
+    prompt_version TEXT NULL,
+    status TEXT NOT NULL DEFAULT 'processed',
+    error_message TEXT NULL,
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    raw_result JSONB NOT NULL DEFAULT '{}'::jsonb
+);
 
-Полный код изменённых файлов
-parser_project/collect_vk_posts.py
-import json
-import os
-from datetime import datetime, timedelta, timezone
+CREATE INDEX IF NOT EXISTS idx_ml_results_processed_at
+    ON ml_results (processed_at);
 
-from dotenv import load_dotenv
+CREATE INDEX IF NOT EXISTS idx_ml_results_status
+    ON ml_results (status);
 
-from kafka_producer import send_document
-from normalizers.vk import normalize_vk_comment, normalize_vk_post
-from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
+CREATE INDEX IF NOT EXISTS idx_ml_results_category
+    ON ml_results (category);
 
-load_dotenv()
+Какие ещё файлы изменены
+parser_project/apply_schema.py (переведён на применение SQL-файлов из директории по порядку).
 
-VK_GROUP_DOMAINS = os.getenv("VK_GROUP_DOMAINS", "")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-VK_POSTS_PER_GROUP = int(os.getenv("VK_POSTS_PER_GROUP", "100"))
-VK_PAGE_SIZE = int(os.getenv("VK_PAGE_SIZE", "20"))
-DAYS_BACK = int(os.getenv("DAYS_BACK", "7"))
-
-
-def _cutoff_datetime(days_back: int) -> datetime:
-    if days_back < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-    return datetime.now(timezone.utc) - timedelta(days=days_back)
-
-
-def _vk_created_at(raw_item: dict) -> datetime:
-    raw_ts = raw_item.get("date")
-    if raw_ts is None:
-        raise ValueError("В VK-объекте отсутствует поле date")
-    return datetime.fromtimestamp(raw_ts, timezone.utc)
-
-
-def get_group_owner_id(screen_name: str) -> int:
-    resolved = resolve_screen_name(screen_name)
-
-    obj_type = resolved.get("type")
-    object_id = resolved.get("object_id")
-
-    if obj_type not in ("group", "page", "event"):
-        raise ValueError(f"{screen_name}: это не группа/паблик/ивент, а {obj_type}")
-
-    if object_id is None:
-        raise ValueError(f"{screen_name}: не удалось получить object_id")
-
-    return -int(object_id)
-
-
-def save_document_jsonl(path: str, doc) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                doc.model_dump(),
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n"
-        )
-
-
-def main():
-    if not VK_GROUP_DOMAINS.strip():
-        raise ValueError("Не найден VK_GROUP_DOMAINS в .env")
-    if VK_POSTS_PER_GROUP <= 0:
-        raise ValueError("VK_POSTS_PER_GROUP должен быть > 0")
-    if VK_PAGE_SIZE <= 0:
-        raise ValueError("VK_PAGE_SIZE должен быть > 0")
-    if DAYS_BACK < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-
-    group_domains = [x.strip() for x in VK_GROUP_DOMAINS.split(",") if x.strip()]
-    cutoff_dt = _cutoff_datetime(DAYS_BACK)
-
-    print("Группы для обхода:")
-    for domain in group_domains:
-        print(f" - {domain}")
-    print(f"Фильтрация по created_at: только за последние {DAYS_BACK} дней (cutoff={cutoff_dt.isoformat()})")
-    print("-" * 80)
-
-    total_sent = 0
-
-    for domain in group_domains:
-        try:
-            owner_id = get_group_owner_id(domain)
-            print(f"[{domain}] owner_id = {owner_id}")
-
-            group_posts_sent = 0
-            group_comments_sent = 0
-            group_posts_dropped_old = 0
-            group_comments_dropped_old = 0
-            offset = 0
-
-            while group_posts_sent < VK_POSTS_PER_GROUP:
-                remaining_posts = VK_POSTS_PER_GROUP - group_posts_sent
-                page_size = min(VK_PAGE_SIZE, remaining_posts)
-
-                raw_posts = get_wall_posts(owner_id, count=page_size, offset=offset)
-                page_posts_received = len(raw_posts)
-                page_posts_sent = 0
-
-                print(
-                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
-                    f"отправлено постов: {page_posts_sent}"
-                )
-
-                if not raw_posts:
-                    print(f"[{domain}] Посты закончились (offset={offset}).")
-                    break
-
-                for raw_post in raw_posts:
-                    if group_posts_sent >= VK_POSTS_PER_GROUP:
-                        break
-
-                    post_created_at = _vk_created_at(raw_post)
-                    if post_created_at < cutoff_dt:
-                        group_posts_dropped_old += 1
-                        continue
-
-                    text = raw_post.get("text", "")
-                    if not text.strip():
-                        continue
-
-                    doc = normalize_vk_post(raw_post)
-
-                    send_document(KAFKA_TOPIC, doc.model_dump())
-                    save_document_jsonl("documents.jsonl", doc)
-
-                    short_view = doc.model_dump()
-                    short_view.pop("raw_payload", None)
-
-                    print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
-                    print("-" * 80)
-
-                    total_sent += 1
-                    group_posts_sent += 1
-                    page_posts_sent += 1
-
-                    post_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
-                    try:
-                        raw_comments = get_post_comments(
-                            owner_id=raw_post["owner_id"],
-                            post_id=raw_post["id"],
-                        )
-                        print(f"[{domain}] [{post_source_id}] Получено комментариев: {len(raw_comments)}")
-
-                        post_comments_sent = 0
-                        for raw_comment in raw_comments:
-                            comment_created_at = _vk_created_at(raw_comment)
-                            if comment_created_at < cutoff_dt:
-                                group_comments_dropped_old += 1
-                                continue
-
-                            comment_text = raw_comment.get("text", "")
-                            if not comment_text.strip():
-                                continue
-
-                            comment_doc = normalize_vk_comment(raw_comment, raw_post)
-                            send_document(KAFKA_TOPIC, comment_doc.model_dump())
-                            save_document_jsonl("documents.jsonl", comment_doc)
-                            total_sent += 1
-                            post_comments_sent += 1
-                            group_comments_sent += 1
-
-                        print(f"[{domain}] [{post_source_id}] Отправлено комментариев: {post_comments_sent}")
-                        print("-" * 80)
-                    except Exception as e:
-                        print(f"[{domain}] [{post_source_id}] Ошибка сбора комментариев: {e}")
-                        print("-" * 80)
-
-                print(
-                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
-                    f"отправлено постов: {page_posts_sent}"
-                )
-                print("-" * 80)
-
-                offset += page_posts_received
-
-                if page_posts_received < page_size:
-                    print(f"[{domain}] Достигнут конец стены (offset={offset}).")
-                    break
-
-            print(
-                f"[{domain}] Итого отправлено: постов={group_posts_sent}, "
-                f"комментариев={group_comments_sent}, всего={group_posts_sent + group_comments_sent}"
-            )
-            print(
-                f"[{domain}] Отфильтровано как слишком старые: "
-                f"постов={group_posts_dropped_old}, комментариев={group_comments_dropped_old}, "
-                f"всего={group_posts_dropped_old + group_comments_dropped_old}"
-            )
-            print("-" * 80)
-
-        except Exception as e:
-            print(f"[{domain}] Ошибка: {e}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {total_sent}")
-
-
-if __name__ == "__main__":
-    main()
-parser_project/collect_rss.py
-import json
-import os
-import uuid
-from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
-from typing import Any
-
-from dotenv import load_dotenv
-
-from id_builders import build_rss_article_doc_id
-from region_extractor import extract_geo, extract_region_hint
-from schema import MediaType, NormalizedDocument, SourceType
-
-load_dotenv()
-
-RSS_FEEDS = os.getenv("RSS_FEEDS", "")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-DAYS_BACK = int(os.getenv("DAYS_BACK", "7"))
-
-
-def _cutoff_datetime(days_back: int) -> datetime:
-    if days_back < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-    return datetime.now(timezone.utc) - timedelta(days=days_back)
-
-
-def _parse_entry_datetime(entry: dict[str, Any]) -> datetime:
-    published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
-    if published_parsed:
-        return datetime(*published_parsed[:6], tzinfo=timezone.utc)
-
-    for field in ("published", "updated"):
-        raw_value = entry.get(field)
-        if not raw_value:
-            continue
-        try:
-            dt = parsedate_to_datetime(raw_value)
-            if dt.tzinfo is None:
-                return dt.replace(tzinfo=timezone.utc)
-            return dt.astimezone(timezone.utc)
-        except (TypeError, ValueError):
-            continue
-
-    return datetime.now(timezone.utc)
-
-
-def _build_source_id(feed_url: str, entry: dict[str, Any]) -> str:
-    preferred_id = entry.get("id") or entry.get("guid") or entry.get("link")
-    if preferred_id:
-        return str(preferred_id)
-
-    title = entry.get("title", "")
-    published = entry.get("published", "")
-    fallback_key = f"{feed_url}:{title}:{published}"
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, fallback_key))
-
-
-def _extract_text(entry: dict[str, Any]) -> str:
-    title = (entry.get("title") or "").strip()
-    summary = (entry.get("summary") or entry.get("description") or "").strip()
-
-    if title and summary:
-        return f"{title}\n\n{summary}"
-    if title:
-        return title
-    if summary:
-        return summary
-
-    content_items = entry.get("content") or []
-    for item in content_items:
-        value = (item.get("value") or "").strip()
-        if value:
-            return value
-
-    return ""
-
-
-def _to_raw_payload(entry: dict[str, Any]) -> dict[str, Any]:
-    return json.loads(json.dumps(entry, ensure_ascii=False, default=str))
-
-
-def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocument:
-    text = _extract_text(entry)
-    if not text.strip():
-        raise ValueError("Пустая RSS-запись: отсутствуют title/summary/content")
-
-    source_id = _build_source_id(feed_url, entry)
-    raw_payload = _to_raw_payload(entry)
-    geo_lat, geo_lon = extract_geo(raw_payload)
-    region_hint = extract_region_hint(text, raw_payload)
-
-    return NormalizedDocument(
-        doc_id=build_rss_article_doc_id(source_id),
-        source_type=SourceType.RSS_ARTICLE,
-        source_id=source_id,
-        parent_id=None,
-        text=text,
-        media_type=MediaType.LINK,
-        created_at=_parse_entry_datetime(entry),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(entry.get("author") or entry.get("source", {}).get("title") or "rss"),
-        is_official=False,
-        reach=0,
-        likes=0,
-        reposts=0,
-        comments_count=0,
-        region_hint=region_hint,
-        geo_lat=geo_lat,
-        geo_lon=geo_lon,
-        raw_payload=raw_payload,
-    )
-
-
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                doc.model_dump(),
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n"
-        )
-
-
-def main() -> None:
-    if not RSS_FEEDS.strip():
-        raise ValueError("Не найден RSS_FEEDS в .env")
-    if DAYS_BACK < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-
-    feed_urls = [x.strip() for x in RSS_FEEDS.split(",") if x.strip()]
-    cutoff_dt = _cutoff_datetime(DAYS_BACK)
-
-    print("RSS-ленты для обхода:")
-    for feed_url in feed_urls:
-        print(f" - {feed_url}")
-    print(f"Фильтрация по created_at: только за последние {DAYS_BACK} дней (cutoff={cutoff_dt.isoformat()})")
-    print("-" * 80)
-
-    total_sent = 0
-
-    for feed_url in feed_urls:
-        try:
-            import feedparser
-
-            parsed_feed = feedparser.parse(feed_url)
-
-            if parsed_feed.bozo:
-                bozo_exception = getattr(parsed_feed, "bozo_exception", "Unknown feed parsing error")
-                raise ValueError(f"Ошибка парсинга RSS: {bozo_exception}")
-
-            entries = parsed_feed.entries or []
-            print(f"[{feed_url}] Получено записей: {len(entries)}")
-
-            feed_sent = 0
-            feed_dropped_old = 0
-            for entry in entries:
-                try:
-                    created_at = _parse_entry_datetime(entry)
-                    if created_at < cutoff_dt:
-                        feed_dropped_old += 1
-                        continue
-
-                    doc = normalize_rss_entry(feed_url, entry)
-                    from kafka_producer import send_document
-
-                    send_document(KAFKA_TOPIC, doc.model_dump())
-                    save_document_jsonl("documents.jsonl", doc)
-
-                    short_view = doc.model_dump()
-                    short_view.pop("raw_payload", None)
-
-                    print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
-                    print("-" * 80)
-
-                    total_sent += 1
-                    feed_sent += 1
-                except Exception as entry_error:
-                    entry_id = entry.get("id") or entry.get("link") or "unknown"
-                    print(f"[{feed_url}] [entry={entry_id}] Ошибка обработки записи: {entry_error}")
-                    print("-" * 80)
-
-            print(f"[{feed_url}] Отправлено в Kafka: {feed_sent}")
-            print(f"[{feed_url}] Отфильтровано как слишком старые: {feed_dropped_old}")
-            print("-" * 80)
-
-        except Exception as feed_error:
-            print(f"[{feed_url}] Ошибка обработки RSS-ленты: {feed_error}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {total_sent}")
-
-
-if __name__ == "__main__":
-    main()
 Testing
 
-✅ python -m py_compile parser_project/collect_vk_posts.py parser_project/collect_rss.py
+✅ python -m py_compile parser_project/apply_schema.py
 
-✅ git commit -m "Add DAYS_BACK freshness filtering for VK and RSS ingestion"
-
-✅ make_pr (создал PR с title/body после коммита).
+Дополнительно: изменения закоммичены, и PR-запись через make_pr создана.
 
 
 4)Summary
-Добавил единый модуль parser_project/config.py, где централизовано чтение всех env-переменных ingestion-части и реализованы проверки (validate_*) с понятными ошибками через ConfigError.
+В parser_project/db.py добавлены:
 
-Перевёл все текущие сборщики (VK, RSS, portal appeals, MAX) и consumer на новый config.py (без os.getenv в этих файлах).
+_serialize_jsonb(...) — общий helper для сериализации dict в JSON с дефолтом {} при None.
 
-Также перевёл связанные ingestion-утилиты (vk_client, kafka_producer, db, apply_schema, create_topic, DB-check скрипты) на единый источник конфигурации, чтобы чтение env было в одном месте.
+save_ml_result(...) — запись/обновление (UPSERT) в ml_results по doc_id, с корректной записью raw_result в jsonb и обновлением processed_at при конфликте.
 
-Обновил .env.example (в parser_project и root), добавив запрошенные переменные: VK_POSTS_PER_GROUP, VK_PAGE_SIZE, DAYS_BACK, RSS_FEEDS, PORTAL_SOURCE, PORTAL_APPEALS_FILE, MAX_MOCK_DATA_PATH; и заменил пример DATABASE_URL на безопасный плейсхолдер без реальных секретов.
+save_ml_error(doc_id, error_message, raw_result=None) — удобная обёртка, которая пишет status='error' без копипасты через вызов save_ml_result(...).
+
+upsert_document и логика дедупликации не изменялись (затронут только новый слой для ML-результатов).
+
+Полностью новые функции
+def _serialize_jsonb(value: Optional[dict]) -> str:
+    return json.dumps(value or {}, ensure_ascii=False)
+
+
+def save_ml_result(
+    *,
+    doc_id: str,
+    summary: Optional[str],
+    score: Optional[float],
+    category: Optional[str],
+    model_version: Optional[str],
+    prompt_version: Optional[str],
+    status: str = "processed",
+    error_message: Optional[str] = None,
+    raw_result: Optional[dict] = None,
+) -> None:
+    query = """
+    INSERT INTO ml_results (
+        doc_id,
+        summary,
+        score,
+        category,
+        model_version,
+        prompt_version,
+        status,
+        error_message,
+        raw_result
+    ) VALUES (
+        %(doc_id)s,
+        %(summary)s,
+        %(score)s,
+        %(category)s,
+        %(model_version)s,
+        %(prompt_version)s,
+        %(status)s,
+        %(error_message)s,
+        %(raw_result)s::jsonb
+    )
+    ON CONFLICT (doc_id) DO UPDATE
+    SET
+        summary = EXCLUDED.summary,
+        score = EXCLUDED.score,
+        category = EXCLUDED.category,
+        model_version = EXCLUDED.model_version,
+        prompt_version = EXCLUDED.prompt_version,
+        status = EXCLUDED.status,
+        error_message = EXCLUDED.error_message,
+        raw_result = EXCLUDED.raw_result,
+        processed_at = NOW();
+    """
+
+    payload = {
+        "doc_id": doc_id,
+        "summary": summary,
+        "score": score,
+        "category": category,
+        "model_version": model_version,
+        "prompt_version": prompt_version,
+        "status": status,
+        "error_message": error_message,
+        "raw_result": _serialize_jsonb(raw_result),
+    }
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, payload)
+
+
+def save_ml_error(doc_id: str, error_message: str, raw_result: Optional[dict] = None) -> None:
+    save_ml_result(
+        doc_id=doc_id,
+        summary=None,
+        score=None,
+        category=None,
+        model_version=None,
+        prompt_version=None,
+        status="error",
+        error_message=error_message,
+        raw_result=raw_result,
+    )
+
+Изменённые файлы
+parser_project/db.py
 
 Testing
 
-✅ python -m compileall parser_project
+✅ python -m compileall parser_project/db.py
 
-✅ pytest -q parser_project/tests/test_ingestion_ids.py parser_project/tests/test_region_extractor.py
-
-Полный код изменённых файлов
-.env.example
-# Root-level environment variables for backend services
-
-# Parser project
-VK_POSTS_PER_GROUP=100
-VK_PAGE_SIZE=20
-DAYS_BACK=7
-RSS_FEEDS=https://example.com/rss,https://another.example/feed.xml
-PORTAL_SOURCE=mock_local_file
-PORTAL_APPEALS_FILE=portal_appeals.jsonl
-MAX_MOCK_DATA_PATH=parser_project/mock/max_messages.json
-parser_project/.env.example
-VK_TOKEN=your_vk_token
-VK_API_VERSION=5.131
-VK_GROUP_DOMAINS=etorostovnadonu,rostov_glavniy,news161
-VK_POSTS_PER_GROUP=100
-VK_PAGE_SIZE=20
-DAYS_BACK=7
-RSS_FEEDS=https://example.com/rss,https://another.example/feed.xml
-
-PORTAL_SOURCE=mock_local_file
-PORTAL_APPEALS_FILE=portal_appeals.jsonl
-MAX_MOCK_DATA_PATH=parser_project/mock/max_messages.json
-
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-KAFKA_TOPIC=raw.documents
-KAFKA_GROUP_ID=documents-consumer-group
-
-DATABASE_URL=postgresql://user:password@localhost:5432/hack_db
-FAILED_MESSAGES_PATH=failed_messages.jsonl
-parser_project/config.py
-from __future__ import annotations
-
-import os
-from dataclasses import dataclass
-from pathlib import Path
-
-from dotenv import load_dotenv
-
-load_dotenv()
+✅ git commit -m "Add ML results upsert helpers in db layer"
 
 
-class ConfigError(RuntimeError):
-    """Понятная шибка конфигурации ingestion-проекта."""
 
+5)Summary
+Создан новый файл parser_project/ml_consumer.py с отдельным Kafka-consumer для ML-этапа: чтение из KAFKA_ML_TOPIC, валидация payload, вызов обработки и сохранение результата в БД через save_ml_result.
 
-@dataclass(frozen=True)
-class AppConfig:
-    kafka_bootstrap_servers: str
-    kafka_topic: str
-    kafka_group_id: str
-    failed_messages_path: Path
+Добавлена функция process_document_for_ml(payload: dict) -> dict со stub-логикой:
 
-    database_url: str | None
+summary = первые 300 символов,
 
-    vk_token: str | None
-    vk_api_version: str
-    vk_group_domains: list[str]
-    vk_posts_per_group: int
-    vk_page_size: int
+score = len(text)/1000 с ограничением 0..1,
 
-    days_back: int
-    rss_feeds: list[str]
+category = "unclassified",
 
-    portal_source: str
-    portal_name: str
-    portal_appeals_file: str
+model_version = "stub-v1",
 
-    max_mock_data_path: str
-    max_output_jsonl_path: str
+prompt_version = None,
 
-    log_level: str
+raw_result = копия результата.
 
+Ошибки валидации и ошибки ML-обработки не останавливают consumer: логируются и сохраняются через save_ml_error(...).
 
-def _csv_env(name: str, default: str = "") -> list[str]:
-    raw = (os.getenv(name, default) or "").strip()
-    if not raw:
-        return []
-    return [value.strip() for value in raw.split(",") if value.strip()]
+Добавлен запуск как отдельного скрипта: python ml_consumer.py.
 
-
-def _int_env(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None or raw.strip() == "":
-        return default
-    try:
-        return int(raw)
-    except ValueError as error:
-        raise ConfigError(f"Некорректное значение {name}={raw!r}: ожидается целое число.") from error
-
-
-def _text_env(name: str, default: str | None = None) -> str | None:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    value = raw.strip()
-    return value if value else default
-
-
-def load_config() -> AppConfig:
-    return AppConfig(
-        kafka_bootstrap_servers=_text_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092") or "localhost:9092",
-        kafka_topic=_text_env("KAFKA_TOPIC", "raw.documents") or "raw.documents",
-        kafka_group_id=_text_env("KAFKA_GROUP_ID", "documents-consumer-group") or "documents-consumer-group",
-        failed_messages_path=Path(_text_env("FAILED_MESSAGES_PATH", "failed_messages.jsonl") or "failed_messages.jsonl"),
-        database_url=_text_env("DATABASE_URL"),
-        vk_token=_text_env("VK_TOKEN"),
-        vk_api_version=_text_env("VK_API_VERSION", "5.131") or "5.131",
-        vk_group_domains=_csv_env("VK_GROUP_DOMAINS"),
-        vk_posts_per_group=_int_env("VK_POSTS_PER_GROUP", 100),
-        vk_page_size=_int_env("VK_PAGE_SIZE", 20),
-        days_back=_int_env("DAYS_BACK", 7),
-        rss_feeds=_csv_env("RSS_FEEDS"),
-        portal_source=_text_env("PORTAL_SOURCE", "mock_local_file") or "mock_local_file",
-        portal_name=_text_env("PORTAL_NAME", "mock_portal") or "mock_portal",
-        portal_appeals_file=_text_env("PORTAL_APPEALS_FILE", "portal_appeals.jsonl") or "portal_appeals.jsonl",
-        max_mock_data_path=_text_env("MAX_MOCK_DATA_PATH", "parser_project/mock/max_messages.json")
-        or "parser_project/mock/max_messages.json",
-        max_output_jsonl_path=_text_env("MAX_OUTPUT_JSONL_PATH", "documents.jsonl") or "documents.jsonl",
-        log_level=_text_env("LOG_LEVEL", "INFO") or "INFO",
-    )
-
-
-def _raise_missing(component: str, missing_names: list[str]) -> None:
-    if not missing_names:
-        return
-    required_list = ", ".join(missing_names)
-    raise ConfigError(
-        f"Не хватает обязательных переменных окружения для {component}: {required_list}. "
-        "Добавьте их в .env и повторите запуск."
-    )
-
-
-def validate_common(config: AppConfig) -> None:
-    if config.days_back < 0:
-        raise ConfigError("DAYS_BACK должен быть >= 0.")
-    if config.vk_posts_per_group <= 0:
-        raise ConfigError("VK_POSTS_PER_GROUP должен быть > 0.")
-    if config.vk_page_size <= 0:
-        raise ConfigError("VK_PAGE_SIZE должен быть > 0.")
-
-
-def validate_vk_config(config: AppConfig) -> None:
-    validate_common(config)
-    missing: list[str] = []
-    if not config.vk_token:
-        missing.append("VK_TOKEN")
-    if not config.vk_group_domains:
-        missing.append("VK_GROUP_DOMAINS")
-    _raise_missing("VK-сборщиа", missing)
-
-
-def validate_rss_config(config: AppConfig) -> None:
-    validate_common(config)
-    missing: list[str] = []
-    if not config.rss_feeds:
-        missing.append("RSS_FEEDS")
-    _raise_missing("RSS-сборщика", missing)
-
-
-def validate_portal_config(config: AppConfig) -> None:
-    missing: list[str] = []
-    if not config.portal_source:
-        missing.append("PORTAL_SOURCE")
-    if config.portal_source == "mock_local_file" and not config.portal_appeals_file:
-        missing.append("PORTAL_APPEALS_FILE")
-    _raise_missing("сборщика обращений портала", missing)
-
-
-def validate_max_config(config: AppConfig) -> None:
-    missing: list[str] = []
-    if not config.max_mock_data_path:
-        missing.append("MAX_MOCK_DATA_PATH")
-    _raise_missing("MAX-сборщика", missing)
-
-
-def validate_consumer_config(config: AppConfig) -> None:
-    missing: list[str] = []
-    if not config.kafka_bootstrap_servers:
-        missing.append("KAFKA_BOOTSTRAP_SERVERS")
-    if not config.kafka_topic:
-        missing.append("KAFKA_TOPIC")
-    if not config.kafka_group_id:
-        missing.append("KAFKA_GROUP_ID")
-    _raise_missing("consumer", missing)
-
-
-def validate_db_config(config: AppConfig) -> None:
-    missing: list[str] = []
-    if not config.database_url:
-        missing.append("DATABASE_URL")
-    _raise_missing("подключения к PostgreSQL", missing)
-parser_project/collect_vk_posts.py
+Содержимое нового файла parser_project/ml_consumer.py
 import json
-from datetime import datetime, timedelta, timezone
-
-from config import load_config, validate_vk_config
-from kafka_producer import send_document
-from normalizers.vk import normalize_vk_comment, normalize_vk_post
-from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
-
-CONFIG = load_config()
-
-
-def _cutoff_datetime(days_back: int) -> datetime:
-    if days_back < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-    return datetime.now(timezone.utc) - timedelta(days=days_back)
-
-
-def _vk_created_at(raw_item: dict) -> datetime:
-    raw_ts = raw_item.get("date")
-    if raw_ts is None:
-        raise ValueError("В VK-объекте отсутствует поле date")
-    return datetime.fromtimestamp(raw_ts, timezone.utc)
-
-
-def get_group_owner_id(screen_name: str) -> int:
-    resolved = resolve_screen_name(screen_name)
-
-    obj_type = resolved.get("type")
-    object_id = resolved.get("object_id")
-
-    if obj_type not in ("group", "page", "event"):
-        raise ValueError(f"{screen_name}: это не группа/паблик/ивент, а {obj_type}")
-
-    if object_id is None:
-        raise ValueError(f"{screen_name}: не удалось получить object_id")
-
-    return -int(object_id)
-
-
-def save_document_jsonl(path: str, doc) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                doc.model_dump(),
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n"
-        )
-
-
-def main():
-    validate_vk_config(CONFIG)
-    group_domains = CONFIG.vk_group_domains
-    cutoff_dt = _cutoff_datetime(CONFIG.days_back)
-
-    print("Группы для обхода:")
-    for domain in group_domains:
-        print(f" - {domain}")
-    print(
-        f"Фильтрация по created_at: только за последние {CONFIG.days_back} дней "
-        f"(cutoff={cutoff_dt.isoformat()})"
-    )
-    print("-" * 80)
-
-    total_sent = 0
-
-    for domain in group_domains:
-        try:
-            owner_id = get_group_owner_id(domain)
-            print(f"[{domain}] owner_id = {owner_id}")
-
-            group_posts_sent = 0
-            group_comments_sent = 0
-            group_posts_dropped_old = 0
-            group_comments_dropped_old = 0
-            offset = 0
-
-            while group_posts_sent < CONFIG.vk_posts_per_group:
-                remaining_posts = CONFIG.vk_posts_per_group - group_posts_sent
-                page_size = min(CONFIG.vk_page_size, remaining_posts)
-
-                raw_posts = get_wall_posts(owner_id, count=page_size, offset=offset)
-                page_posts_received = len(raw_posts)
-                page_posts_sent = 0
-
-                print(
-                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
-                    f"отправлено постов: {page_posts_sent}"
-                )
-
-                if not raw_posts:
-                    print(f"[{domain}] Посты закончились (offset={offset}).")
-                    break
-
-                for raw_post in raw_posts:
-                    if group_posts_sent >= CONFIG.vk_posts_per_group:
-                        break
-
-                    post_created_at = _vk_created_at(raw_post)
-                    if post_created_at < cutoff_dt:
-                        group_posts_dropped_old += 1
-                        continue
-
-                    text = raw_post.get("text", "")
-                    if not text.strip():
-                        continue
-
-                    doc = normalize_vk_post(raw_post)
-
-                    send_document(CONFIG.kafka_topic, doc.model_dump())
-                    save_document_jsonl("documents.jsonl", doc)
-
-                    short_view = doc.model_dump()
-                    short_view.pop("raw_payload", None)
-
-                    print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
-                    print("-" * 80)
-
-                    total_sent += 1
-                    group_posts_sent += 1
-                    page_posts_sent += 1
-
-                    post_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
-                    try:
-                        raw_comments = get_post_comments(
-                            owner_id=raw_post["owner_id"],
-                            post_id=raw_post["id"],
-                        )
-                        print(f"[{domain}] [{post_source_id}] Получено комментариев: {len(raw_comments)}")
-
-                        post_comments_sent = 0
-                        for raw_comment in raw_comments:
-                            comment_created_at = _vk_created_at(raw_comment)
-                            if comment_created_at < cutoff_dt:
-                                group_comments_dropped_old += 1
-                                continue
-
-                            comment_text = raw_comment.get("text", "")
-                            if not comment_text.strip():
-                                continue
-
-                            comment_doc = normalize_vk_comment(raw_comment, raw_post)
-                            send_document(CONFIG.kafka_topic, comment_doc.model_dump())
-                            save_document_jsonl("documents.jsonl", comment_doc)
-                            total_sent += 1
-                            post_comments_sent += 1
-                            group_comments_sent += 1
-
-                        print(f"[{domain}] [{post_source_id}] Отправлено комментариев: {post_comments_sent}")
-                        print("-" * 80)
-                    except Exception as e:
-                        print(f"[{domain}] [{post_source_id}] Ошибка сбора комментариев: {e}")
-                        print("-" * 80)
-
-                print(
-                    f"[{domain}] offset={offset} | получено постов: {page_posts_received} | "
-                    f"отправлено постов: {page_posts_sent}"
-                )
-                print("-" * 80)
-
-                offset += page_posts_received
-
-                if page_posts_received < page_size:
-                    print(f"[{domain}] Достигнут конец стены (offset={offset}).")
-                    break
-
-            print(
-                f"[{domain}] Итого отправлено: постов={group_posts_sent}, "
-                f"комментариев={group_comments_sent}, всего={group_posts_sent + group_comments_sent}"
-            )
-            print(
-                f"[{domain}] Отфильтровано как слишком старые: "
-                f"постов={group_posts_dropped_old}, комментариев={group_comments_dropped_old}, "
-                f"всего={group_posts_dropped_old + group_comments_dropped_old}"
-            )
-            print("-" * 80)
-
-        except Exception as e:
-            print(f"[{domain}] Ошибка: {e}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {total_sent}")
-
-
-if __name__ == "__main__":
-    main()
-parser_project/collect_rss.py
-import json
-import uuid
-from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
 from typing import Any
 
-from config import load_config, validate_rss_config
-from id_builders import build_rss_article_doc_id
-from region_extractor import extract_geo, extract_region_hint
-from schema import MediaType, NormalizedDocument, SourceType
-
-CONFIG = load_config()
-
-
-def _cutoff_datetime(days_back: int) -> datetime:
-    if days_back < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-    return datetime.now(timezone.utc) - timedelta(days=days_back)
-
-
-def _parse_entry_datetime(entry: dict[str, Any]) -> datetime:
-    published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
-    if published_parsed:
-        return datetime(*published_parsed[:6], tzinfo=timezone.utc)
-
-    for field in ("published", "updated"):
-        raw_value = entry.get(field)
-        if not raw_value:
-            continue
-        try:
-            dt = parsedate_to_datetime(raw_value)
-            if dt.tzinfo is None:
-                return dt.replace(tzinfo=timezone.utc)
-            return dt.astimezone(timezone.utc)
-        except (TypeError, ValueError):
-            continue
-
-    return datetime.now(timezone.utc)
-
-
-def _build_source_id(feed_url: str, entry: dict[str, Any]) -> str:
-    preferred_id = entry.get("id") or entry.get("guid") or entry.get("link")
-    if preferred_id:
-        return str(preferred_id)
-
-    title = entry.get("title", "")
-    published = entry.get("published", "")
-    fallback_key = f"{feed_url}:{title}:{published}"
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, fallback_key))
-
-
-def _extract_text(entry: dict[str, Any]) -> str:
-    title = (entry.get("title") or "").strip()
-    summary = (entry.get("summary") or entry.get("description") or "").strip()
-
-    if title and summary:
-        return f"{title}\n\n{summary}"
-    if title:
-        return title
-    if summary:
-        return summary
-
-    content_items = entry.get("content") or []
-    for item in content_items:
-        value = (item.get("value") or "").strip()
-        if value:
-            return value
-
-    return ""
-
-
-def _to_raw_payload(entry: dict[str, Any]) -> dict[str, Any]:
-    return json.loads(json.dumps(entry, ensure_ascii=False, default=str))
-
-
-def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocument:
-    text = _extract_text(entry)
-    if not text.strip():
-        raise ValueError("Пустая RSS-запись: отсутствуют title/summary/content")
-
-    source_id = _build_source_id(feed_url, entry)
-    raw_payload = _to_raw_payload(entry)
-    geo_lat, geo_lon = extract_geo(raw_payload)
-    region_hint = extract_region_hint(text, raw_payload)
-
-    return NormalizedDocument(
-        doc_id=build_rss_article_doc_id(source_id),
-        source_type=SourceType.RSS_ARTICLE,
-        source_id=source_id,
-        parent_id=None,
-        text=text,
-        media_type=MediaType.LINK,
-        created_at=_parse_entry_datetime(entry),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(entry.get("author") or entry.get("source", {}).get("title") or "rss"),
-        is_official=False,
-        reach=0,
-        likes=0,
-        reposts=0,
-        comments_count=0,
-        region_hint=region_hint,
-        geo_lat=geo_lat,
-        geo_lon=geo_lon,
-        raw_payload=raw_payload,
-    )
-
-
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                doc.model_dump(),
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n"
-        )
-
-
-def main() -> None:
-    validate_rss_config(CONFIG)
-    feed_urls = CONFIG.rss_feeds
-    cutoff_dt = _cutoff_datetime(CONFIG.days_back)
-
-    print("RSS-ленты для обхода:")
-    for feed_url in feed_urls:
-        print(f" - {feed_url}")
-    print(
-        f"Фильтрация по created_at: только за последние {CONFIG.days_back} дней "
-        f"(cutoff={cutoff_dt.isoformat()})"
-    )
-    print("-" * 80)
-
-    total_sent = 0
-
-    for feed_url in feed_urls:
-        try:
-            import feedparser
-
-            parsed_feed = feedparser.parse(feed_url)
-
-            if parsed_feed.bozo:
-                bozo_exception = getattr(parsed_feed, "bozo_exception", "Unknown feed parsing error")
-                raise ValueError(f"Ошибка парсинга RSS: {bozo_exception}")
-
-            entries = parsed_feed.entries or []
-            print(f"[{feed_url}] Получено записей: {len(entries)}")
-
-            feed_sent = 0
-            feed_dropped_old = 0
-            for entry in entries:
-                try:
-                    created_at = _parse_entry_datetime(entry)
-                    if created_at < cutoff_dt:
-                        feed_dropped_old += 1
-                        continue
-
-                    doc = normalize_rss_entry(feed_url, entry)
-                    from kafka_producer import send_document
-
-                    send_document(CONFIG.kafka_topic, doc.model_dump())
-                    save_document_jsonl("documents.jsonl", doc)
-
-                    short_view = doc.model_dump()
-                    short_view.pop("raw_payload", None)
-
-                    print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
-                    print("-" * 80)
-
-                    total_sent += 1
-                    feed_sent += 1
-                except Exception as entry_error:
-                    entry_id = entry.get("id") or entry.get("link") or "unknown"
-                    print(f"[{feed_url}] [entry={entry_id}] Ошибка обработки записи: {entry_error}")
-                    print("-" * 80)
-
-            print(f"[{feed_url}] Отправлено в Kafka: {feed_sent}")
-            print(f"[{feed_url}] Отфильтровано как слишком старые: {feed_dropped_old}")
-            print("-" * 80)
-
-        except Exception as feed_error:
-            print(f"[{feed_url}] Ошибка обработки RSS-ленты: {feed_error}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {total_sent}")
-
-
-if __name__ == "__main__":
-    main()
-parser_project/collect_portal_appeals.py
-import json
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Iterable
-
-from config import load_config, validate_portal_config
-from id_builders import build_portal_appeal_doc_id
-from kafka_producer import send_document
-from schema import MediaType, NormalizedDocument, SourceType
-
-CONFIG = load_config()
-
-
-@dataclass(frozen=True)
-class RawPortalAppeal:
-    """Единый контракт обращения гражданина, полученного из любого портала."""
-
-    appeal_id: str
-    text: str
-    created_at: datetime
-    region_hint: str
-    author_id: str
-    raw_payload: dict[str, Any]
-
-
-class PortalAppealLoader(ABC):
-    """Базовый интерфейс загрузчика обращений с порталов."""
-
-    @abstractmethod
-    def iter_appeals(self) -> Iterable[RawPortalAppeal]:
-        """Возвращает поток сырых обращений портала."""
-
-
-class MockLocalFilePortalLoader(PortalAppealLoader):
-    """Демо-источник: читает обращения из локального json/jsonl файла."""
-
-    def __init__(self, file_path: str):
-        self._file_path = Path(file_path)
-
-    def iter_appeals(self) -> Iterable[RawPortalAppeal]:
-        if not self._file_path.exists():
-            raise FileNotFoundError(f"Файл обращений не найден: {self._file_path}")
-
-        rows = self._read_rows(self._file_path)
-        for row in rows:
-            yield self._to_raw_appeal(row)
-
-    @staticmethod
-    def _read_rows(file_path: Path) -> Iterable[dict[str, Any]]:
-        ext = file_path.suffix.lower()
-
-        if ext == ".jsonl":
-            with file_path.open("r", encoding="utf-8") as f:
-                for line_number, line in enumerate(f, start=1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        yield json.loads(line)
-                    except json.JSONDecodeError as error:
-                        raise ValueError(f"Некорректный JSONL в строке {line_number}: {error}") from error
-            return
-
-        if ext == ".json":
-            with file_path.open("r", encoding="utf-8") as f:
-                payload = json.load(f)
-
-            if isinstance(payload, dict):
-                items = payload.get("items")
-                if isinstance(items, list):
-                    for item in items:
-                        if isinstance(item, dict):
-                            yield item
-                        else:
-                            raise ValueError("Поле items должно содержать объекты обращений")
-                    return
-                raise ValueError("JSON-объект должен содержать список обращений в поле 'items'")
-
-            if isinstance(payload, list):
-                for item in payload:
-                    if isinstance(item, dict):
-                        yield item
-                    else:
-                        raise ValueError("JSON-массив должен содержать объекты обращений")
-                return
-
-            raise ValueError("JSON должен быть массивом обращений или объектом с полем 'items'")
-
-        raise ValueError("Поддерживаются только файлы .json и .jsonl")
-
-    @staticmethod
-    def _to_raw_appeal(row: dict[str, Any]) -> RawPortalAppeal:
-        appeal_id = str(row.get("id") or "").strip()
-        if not appeal_id:
-            raise ValueError("У обращения отсутствует обязательное поле id")
-
-        text = str(row.get("text") or "").strip()
-        if not text:
-            raise ValueError(f"У обращения {appeal_id} отсутствует обязательное поле text")
-
-        created_at = parse_datetime_or_now(row.get("created_at"))
-        region_hint = str(row.get("region_hint") or "unknown").strip() or "unknown"
-        author_id = str(row.get("author_id") or "anonymous").strip() or "anonymous"
-
-        return RawPortalAppeal(
-            appeal_id=appeal_id,
-            text=text,
-            created_at=created_at,
-            region_hint=region_hint,
-            author_id=author_id,
-            raw_payload=row,
-        )
-
-
-def parse_datetime_or_now(value: Any) -> datetime:
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
-
-    if isinstance(value, str) and value.strip():
-        raw = value.strip().replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(raw)
-            if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=timezone.utc)
-            return parsed.astimezone(timezone.utc)
-        except ValueError:
-            pass
-
-    return datetime.now(timezone.utc)
-
-
-def normalize_portal_appeal(appeal: RawPortalAppeal) -> NormalizedDocument:
-    """Нормализует обращение гражданина в единый контракт документа."""
-
-    collected_at = datetime.now(timezone.utc)
-
-    return NormalizedDocument(
-        doc_id=build_portal_appeal_doc_id(appeal.appeal_id),
-        source_type=SourceType.PORTAL_APPEAL,
-        source_id=appeal.appeal_id,
-        parent_id=None,
-        text=appeal.text,
-        media_type=MediaType.TEXT,
-        created_at=appeal.created_at,
-        collected_at=collected_at,
-        author_id=appeal.author_id or "anonymous",
-        is_official=False,
-        reach=0,
-        likes=0,
-        reposts=0,
-        comments_count=0,
-        region_hint=appeal.region_hint,
-        geo_lat=None,
-        geo_lon=None,
-        raw_payload=appeal.raw_payload,
-    )
-
-
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc.model_dump(), ensure_ascii=False, default=str) + "\n")
-
-
-def build_loader(source_name: str, **kwargs: Any) -> PortalAppealLoader:
-    """
-    Фабрика загрузчиков по типу источника.
-
-    TODO: Добавить реализации для production-порталов (API, auth, pagination, retries).
-    """
-
-    if source_name == "mock_local_file":
-        file_path = kwargs.get("file_path")
-        if not file_path:
-            raise ValueError("Для mock_local_file требуется file_path")
-        return MockLocalFilePortalLoader(file_path=file_path)
-
-    raise ValueError(f"Неизвестный тип источника PORTAL_SOURCE: {source_name}")
-
-
-def main() -> None:
-    validate_portal_config(CONFIG)
-    loader = build_loader(CONFIG.portal_source, file_path=CONFIG.portal_appeals_file)
-
-    print(f"Источник обращений: {CONFIG.portal_source}")
-    print(f"Портал: {CONFIG.portal_name}")
-    if CONFIG.portal_source == "mock_local_file":
-        print(f"Файл: {CONFIG.portal_appeals_file}")
-    print("-" * 80)
-
-    sent = 0
-
-    for appeal in loader.iter_appeals():
-        try:
-            doc = normalize_portal_appeal(appeal)
-            send_document(CONFIG.kafka_topic, doc.model_dump())
-            save_document_jsonl("documents.jsonl", doc)
-
-            short_view = doc.model_dump()
-            short_view.pop("raw_payload", None)
-
-            print(json.dumps(short_view, ensure_ascii=False, indent=2, default=str))
-            print("-" * 80)
-            sent += 1
-        except Exception as error:
-            print(f"[portal={CONFIG.portal_name}] [appeal_id={appeal.appeal_id}] Ошибка обработки: {error}")
-            print("-" * 80)
-
-    print(f"Всего отправлено в Kafka: {sent}")
-
-
-if __name__ == "__main__":
-    main()
-parser_project/collect_max_messages.py
-import json
-import logging
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Protocol
-
-from config import load_config, validate_max_config
-from id_builders import build_max_comment_doc_id, build_max_post_doc_id
-from kafka_producer import send_document
-from schema import MediaType, NormalizedDocument, SourceType
-
-CONFIG = load_config()
-
-logger = logging.getLogger("collect_max_messages")
-
-
-class MaxClient(Protocol):
-    """Интерфейс клиента MAX.
-
-    TODO: при подключении реального API вынести контракт в отдельный модуль и
-    добавить реализацию с auth/retry/rate-limit.
-    """
-
-    def get_channels(self) -> list[dict[str, Any]]:
-        """Возвращает список каналов."""
-
-    def get_posts(self, channel_id: str) -> list[dict[str, Any]]:
-        """Возвращает посты по каналу."""
-
-    def get_comments(self, post_id: str) -> list[dict[str, Any]]:
-        """Возвращает комментарии/ответы по посту."""
-
-
-class MockMaxClient:
-    """Mock-реализация MAX-клиента поверх локального JSON.
-
-    Поддерживаемые форматы файла:
-    1) Плоский:
-       {
-         "channels": [...],
-         "posts": [...],
-         "comments": [...]
-       }
-    2) Вложенный:
-       {
-         "channels": [
-           {"id": "...", "posts": [{..., "comments": [...]}]}
-         ]
-       }
-    """
-
-    def __init__(self, json_path: str) -> None:
-        self._json_path = Path(json_path)
-        self._data = self._load_data(self._json_path)
-
-    @staticmethod
-    def _load_data(path: Path) -> dict[str, Any]:
-        if not path.exists():
-            raise FileNotFoundError(f"MAX mock file not found: {path}")
-        with path.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-        if not isinstance(payload, dict):
-            raise ValueError("MAX mock JSON должен быть объектом")
-        return payload
-
-    def get_channels(self) -> list[dict[str, Any]]:
-        channels = self._data.get("channels", [])
-        if not isinstance(channels, list):
-            raise ValueError("MAX mock JSON: поле channels должно быть списком")
-        return channels
-
-    def get_posts(self, channel_id: str) -> list[dict[str, Any]]:
-        if isinstance(self._data.get("posts"), list):
-            return [p for p in self._data["posts"] if str(p.get("channel_id")) == str(channel_id)]
-
-        posts: list[dict[str, Any]] = []
-        for channel in self.get_channels():
-            if str(channel.get("id")) != str(channel_id):
-                continue
-            for post in channel.get("posts", []):
-                post_copy = dict(post)
-                post_copy.setdefault("channel_id", channel_id)
-                posts.append(post_copy)
-        return posts
-
-    def get_comments(self, post_id: str) -> list[dict[str, Any]]:
-        if isinstance(self._data.get("comments"), list):
-            return [c for c in self._data["comments"] if str(c.get("post_id")) == str(post_id)]
-
-        comments: list[dict[str, Any]] = []
-        for channel in self.get_channels():
-            for post in channel.get("posts", []):
-                if str(post.get("id")) != str(post_id):
-                    continue
-                for comment in post.get("comments", []):
-                    comment_copy = dict(comment)
-                    comment_copy.setdefault("post_id", post_id)
-                    comments.append(comment_copy)
-        return comments
-
-
-# TODO: подключить здесь реальный MAX HTTP/SDK клиент и оставить Mock как fallback.
-# class RealMaxClient(MaxClient):
-#     ...
-
-
-def _parse_datetime(value: Any) -> datetime:
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, timezone.utc)
-    if isinstance(value, str):
-        candidate = value.strip()
-        if candidate.endswith("Z"):
-            candidate = candidate[:-1] + "+00:00"
-        try:
-            dt = datetime.fromisoformat(candidate)
-            if dt.tzinfo is None:
-                return dt.replace(tzinfo=timezone.utc)
-            return dt.astimezone(timezone.utc)
-        except ValueError:
-            logger.warning("Не удалось распарсить created_at=%s, используем текущее timezone.utc", value)
-    return datetime.now(timezone.utc)
-
-
-def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> NormalizedDocument:
-    text = str(raw_post.get("text", "")).strip()
-    if not text:
-        raise ValueError("Пустой MAX-пост: text обязателен")
-
-    channel_id = str(raw_post.get("channel_id") or channel.get("id"))
-    post_id = str(raw_post["id"])
-    source_id = f"{channel_id}_{post_id}"
-
-    return NormalizedDocument(
-        doc_id=build_max_post_doc_id(source_id),
-        source_type=SourceType.MAX_POST,
-        source_id=source_id,
-        parent_id=None,
-        text=text,
-        media_type=MediaType.TEXT,
-        created_at=_parse_datetime(raw_post.get("created_at")),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_post.get("author_id") or channel.get("owner_id") or "unknown"),
-        is_official=bool(raw_post.get("is_official", channel.get("is_official", False))),
-        reach=int(raw_post.get("reach", 0) or 0),
-        likes=int(raw_post.get("likes", 0) or 0),
-        reposts=int(raw_post.get("reposts", 0) or 0),
-        comments_count=int(raw_post.get("comments_count", 0) or 0),
-        region_hint=raw_post.get("region_hint") or channel.get("region_hint"),
-        geo_lat=raw_post.get("geo_lat"),
-        geo_lon=raw_post.get("geo_lon"),
-        raw_payload=raw_post,
-    )
-
-
-def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, Any]) -> NormalizedDocument:
-    text = str(raw_comment.get("text", "")).strip()
-    if not text:
-        raise ValueError("Пустой MAX-комментарий: text обязателен")
-
-    parent_channel_id = str(parent_post.get("channel_id") or "")
-    parent_post_id = str(parent_post.get("id"))
-    post_source_id = f"{parent_channel_id}_{parent_post_id}" if parent_channel_id else parent_post_id
-    comment_id = str(raw_comment["id"])
-    source_id = f"{post_source_id}_{comment_id}"
-
-    return NormalizedDocument(
-        doc_id=build_max_comment_doc_id(source_id),
-        source_type=SourceType.MAX_COMMENT,
-        source_id=source_id,
-        parent_id=build_max_post_doc_id(post_source_id),
-        text=text,
-        media_type=MediaType.TEXT,
-        created_at=_parse_datetime(raw_comment.get("created_at")),
-        collected_at=datetime.now(timezone.utc),
-        author_id=str(raw_comment.get("author_id", "unknown")),
-        is_official=bool(raw_comment.get("is_official", False)),
-        reach=int(raw_comment.get("reach", 0) or 0),
-        likes=int(raw_comment.get("likes", 0) or 0),
-        reposts=0,
-        comments_count=int(raw_comment.get("replies_count", 0) or 0),
-        region_hint=raw_comment.get("region_hint") or parent_post.get("region_hint"),
-        geo_lat=raw_comment.get("geo_lat"),
-        geo_lon=raw_comment.get("geo_lon"),
-        raw_payload=raw_comment,
-    )
-
-
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc.model_dump(), ensure_ascii=False, default=str) + "\n")
-
-
-def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
-    total_sent = 0
-
-    channels = client.get_channels()
-    logger.info("Получено каналов MAX: %d", len(channels))
-
-    for channel in channels:
-        channel_id = str(channel.get("id"))
-        if not channel_id:
-            logger.warning("Пропускаем канал без id: %s", channel)
-            continue
-
-        logger.info("Обрабатываем канал=%s", channel_id)
-        posts = client.get_posts(channel_id)
-        logger.info("Канал=%s, постов=%d", channel_id, len(posts))
-
-        for post in posts:
-            try:
-                post_doc = normalize_max_post(post, channel)
-                send_document(kafka_topic, post_doc.model_dump())
-                save_document_jsonl(CONFIG.max_output_jsonl_path, post_doc)
-                total_sent += 1
-            except Exception as post_error:
-                logger.exception("Ошибка нормализации/отправки поста channel=%s: %s", channel_id, post_error)
-                continue
-
-            post_id = str(post.get("id"))
-            if not post_id:
-                continue
-
-            comments = client.get_comments(post_id)
-            logger.info("Канал=%s, пост=%s, комментариев=%d", channel_id, post_id, len(comments))
-
-            for comment in comments:
-                try:
-                    comment_doc = normalize_max_comment(comment, post)
-                    send_document(kafka_topic, comment_doc.model_dump())
-                    save_document_jsonl(CONFIG.max_output_jsonl_path, comment_doc)
-                    total_sent += 1
-                except Exception as comment_error:
-                    logger.exception(
-                        "Ошибка нормализации/отправки комментария channel=%s post=%s: %s",
-                        channel_id,
-                        post_id,
-                        comment_error,
-                    )
-
-    return total_sent
-
-
-def main() -> None:
-    validate_max_config(CONFIG)
-    logging.basicConfig(
-        level=CONFIG.log_level,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    )
-
-    logger.info("Запуск сборщика MAX (mock mode)")
-    logger.info("Kafka topic=%s", CONFIG.kafka_topic)
-    logger.info("Mock data path=%s", CONFIG.max_mock_data_path)
-
-    # TODO: заменить фабрику клиента на переключение mock/real через env-флаг.
-    client: MaxClient = MockMaxClient(CONFIG.max_mock_data_path)
-
-    total = process_max_messages(client, CONFIG.kafka_topic)
-    logger.info("MAX ingest завершён, отправлено сообщений=%d", total)
-
-
-if __name__ == "__main__":
-    main()
-parser_project/consumer.py
-import json
-from datetime import datetime, UTC
-
 from kafka import KafkaConsumer
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from config import load_config, validate_consumer_config
-from db import upsert_document
-from schema import NormalizedDocument
+from config import load_config
+from db import save_ml_error, save_ml_result
 
 CONFIG = load_config()
 
 
-def save_failed_message(raw_message: dict, error: str) -> None:
-    CONFIG.failed_messages_path.parent.mkdir(parents=True, exist_ok=True)
-    with CONFIG.failed_messages_path.open("a", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                {
-                    "failed_at": datetime.now(UTC).isoformat(),
-                    "error": error,
-                    "message": raw_message,
-                },
-                ensure_ascii=False,
-                default=str,
-            )
-            + "\n"
+class MLPayload(BaseModel):
+    doc_id: str
+    text: str
+
+
+def validate_ml_consumer_config() -> None:
+    missing: list[str] = []
+    if not CONFIG.kafka_bootstrap_servers:
+        missing.append("KAFKA_BOOTSTRAP_SERVERS")
+    if not CONFIG.kafka_ml_topic:
+        missing.append("KAFKA_ML_TOPIC")
+    if not CONFIG.kafka_group_id:
+        missing.append("KAFKA_GROUP_ID")
+
+    if missing:
+        required = ", ".join(missing)
+        raise RuntimeError(
+            "Не хватает обязательных переменных окружения для ml_consumer: "
+            f"{required}. Добавьте их в .env и повторите запуск."
         )
 
 
+def process_document_for_ml(payload: dict) -> dict:
+    text = payload.get("text") or ""
+    if not isinstance(text, str):
+        text = str(text)
+
+    summary = text[:300]
+    score = min(max(len(text) / 1000, 0.0), 1.0)
+
+    result = {
+        "summary": summary,
+        "score": score,
+        "category": "unclassified",
+        "model_version": "stub-v1",
+        "prompt_version": None,
+    }
+    result["raw_result"] = dict(result)
+
+    return result
+
+
 def main() -> None:
-    validate_consumer_config(CONFIG)
+    validate_ml_consumer_config()
+
     consumer = KafkaConsumer(
-        CONFIG.kafka_topic,
+        CONFIG.kafka_ml_topic,
         bootstrap_servers=CONFIG.kafka_bootstrap_servers,
         auto_offset_reset="earliest",
         enable_auto_commit=True,
-        group_id=CONFIG.kafka_group_id,
+        group_id=f"{CONFIG.kafka_group_id}-ml",
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
     )
 
-    print(f"Слушаю Kafka topic: {CONFIG.kafka_topic}")
+    print(f"Слушаю Kafka topic: {CONFIG.kafka_ml_topic}")
     print("Нажми Ctrl+C, чтобы остановить.")
     print("-" * 80)
 
     try:
         for message in consumer:
-            raw_data = message.value
+            raw_data: Any = message.value
+
             try:
-                document = NormalizedDocument.model_validate(raw_data)
-                upsert_document(document)
-                print(f"✅ Сохранен документ в PostgreSQL: {document.doc_id}")
-            except (ValidationError, Exception) as exc:
-                print(f"❌ Ошибка обработки сообщения offset={message.offset}: {exc}")
-                save_failed_message(raw_data, str(exc))
+                payload = MLPayload.model_validate(raw_data)
+            except ValidationError as exc:
+                print(f"❌ Ошибка валидации ML payload offset={message.offset}: {exc}")
+                doc_id = raw_data.get("doc_id") if isinstance(raw_data, dict) else "unknown"
+                save_ml_error(doc_id=str(doc_id), error_message=f"validation_error: {exc}", raw_result={"payload": raw_data})
+                continue
+
+            try:
+                ml_result = process_document_for_ml(payload.model_dump())
+                save_ml_result(
+                    doc_id=payload.doc_id,
+                    summary=ml_result.get("summary"),
+                    score=ml_result.get("score"),
+                    category=ml_result.get("category"),
+                    model_version=ml_result.get("model_version"),
+                    prompt_version=ml_result.get("prompt_version"),
+                    raw_result=ml_result.get("raw_result", ml_result),
+                )
+                print(f"✅ ML результат сохранен: {payload.doc_id}")
+            except Exception as exc:
+                print(f"❌ Ошибка ML-обработки offset={message.offset}, doc_id={payload.doc_id}: {exc}")
+                save_ml_error(
+                    doc_id=payload.doc_id,
+                    error_message=str(exc),
+                    raw_result={"payload": payload.model_dump()},
+                )
 
     except KeyboardInterrupt:
         print("\nОстановлено пользователем.")
@@ -2663,872 +358,40 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-parser_project/vk_client.py
-import httpx
-from config import ConfigError, load_config
+Зависимости
+Новых зависимостей не добавлялось (использованы уже существующие: kafka-python, pydantic, и функции из локального db.py).
 
-CONFIG = load_config()
-
-
-def vk_api_call(method: str, params: dict) -> dict:
-    if not CONFIG.vk_token:
-        raise ConfigError("Не найден VK_TOKEN. Добавьте переменную в .env.")
-
-    url = f"https://api.vk.com/method/{method}"
-
-    response = httpx.get(
-        url,
-        params={
-            **params,
-            "access_token": CONFIG.vk_token,
-            "v": CONFIG.vk_api_version,
-        },
-        timeout=30.0,
-    )
-
-    response.raise_for_status()
-    data = response.json()
-
-    if "error" in data:
-        raise RuntimeError(f"VK API error: {data['error']}")
-
-    return data["response"]
-
-
-def resolve_screen_name(screen_name: str) -> dict:
-    return vk_api_call(
-        "utils.resolveScreenName",
-        {
-            "screen_name": screen_name,
-        },
-    )
-
-
-def get_wall_posts(owner_id: int, count: int = 5, offset: int = 0) -> list[dict]:
-    response = vk_api_call(
-        "wall.get",
-        {
-            "owner_id": owner_id,
-            "count": count,
-            "offset": offset,
-            "filter": "owner",
-        },
-    )
-    return response.get("items", [])
-
-
-def get_post_comments(
-    owner_id: int,
-    post_id: int,
-    count: int = 100,
-) -> list[dict]:
-    comments: list[dict] = []
-    offset = 0
-
-    while True:
-        response = vk_api_call(
-            "wall.getComments",
-            {
-                "owner_id": owner_id,
-                "post_id": post_id,
-                "count": count,
-                "offset": offset,
-                "need_likes": 1,
-                "extended": 0,
-                "thread_items_count": 0,
-            },
-        )
-
-        items = response.get("items", [])
-        total = response.get("count", 0)
-
-        comments.extend(items)
-
-        if not items:
-            break
-
-        offset += len(items)
-        if offset >= total:
-            break
-
-    return comments
-parser_project/kafka_producer.py
-import json
-from kafka import KafkaProducer
-
-from config import load_config
-
-CONFIG = load_config()
-
-
-producer = KafkaProducer(
-    bootstrap_servers=CONFIG.kafka_bootstrap_servers,
-    value_serializer=lambda v: json.dumps(
-        v,
-        ensure_ascii=False,
-        default=str,
-    ).encode("utf-8"),
-)
-
-
-def send_document(topic: str, document: dict) -> None:
-    producer.send(topic, document)
-    producer.flush()
-parser_project/db.py
-import hashlib
-import json
-import re
-import uuid
-from contextlib import contextmanager
-from difflib import SequenceMatcher
-from typing import Generator, Optional, Protocol
-
-import psycopg
-
-from config import load_config, validate_db_config
-from schema import NormalizedDocument
-
-CONFIG = load_config()
-validate_db_config(CONFIG)
-
-
-class DuplicateCandidate(Protocol):
-    doc_id: str
-    duplicate_of: Optional[str]
-    cluster_id: Optional[str]
-
-
-class DeduplicationStrategy(Protocol):
-    """Strategy interface to keep room for stronger semantic deduplication."""
-
-    def find_candidate(
-        self,
-        cur: psycopg.Cursor,
-        *,
-        doc_id: str,
-        text_fingerprint: str,
-        normalized_title: Optional[str],
-        normalized_text: str,
-    ) -> Optional[dict]:
-        ...
-
-
-class FingerprintSimilarityDeduplicator:
-    """Rule-based deduplication using fingerprint and lexical similarity."""
-
-    MAX_CANDIDATES = 300
-    TITLE_THRESHOLD = 0.92
-    TEXT_THRESHOLD = 0.97
-    COMBINED_THRESHOLD = 0.94
-
-    def find_candidate(
-        self,
-        cur: psycopg.Cursor,
-        *,
-        doc_id: str,
-        text_fingerprint: str,
-        normalized_title: Optional[str],
-        normalized_text: str,
-    ) -> Optional[dict]:
-        cur.execute(
-            """
-            SELECT doc_id, duplicate_of, cluster_id
-            FROM document_fingerprints
-            WHERE text_fingerprint = %(text_fingerprint)s
-              AND doc_id <> %(doc_id)s
-            ORDER BY updated_at DESC
-            LIMIT 1;
-            """,
-            {"text_fingerprint": text_fingerprint, "doc_id": doc_id},
-        )
-        exact_match = cur.fetchone()
-        if exact_match:
-            return {
-                "doc_id": exact_match[0],
-                "duplicate_of": exact_match[1],
-                "cluster_id": exact_match[2],
-                "reason": "fingerprint_match",
-            }
-
-        cur.execute(
-            """
-            SELECT doc_id, duplicate_of, cluster_id, normalized_title, normalized_text
-            FROM document_fingerprints
-            WHERE doc_id <> %(doc_id)s
-            ORDER BY updated_at DESC
-            LIMIT %(limit)s;
-            """,
-            {"doc_id": doc_id, "limit": self.MAX_CANDIDATES},
-        )
-
-        best_candidate = None
-        best_score = 0.0
-
-        for row in cur.fetchall():
-            candidate_title = row[3]
-            candidate_text = row[4]
-
-            title_similarity = similarity(normalized_title, candidate_title)
-            text_similarity = similarity(normalized_text, candidate_text)
-            combined_similarity = max(title_similarity, text_similarity)
-
-            is_duplicate = (
-                title_similarity >= self.TITLE_THRESHOLD
-                or text_similarity >= self.TEXT_THRESHOLD
-                or combined_similarity >= self.COMBINED_THRESHOLD
-            )
-
-            if is_duplicate and combined_similarity > best_score:
-                best_score = combined_similarity
-                best_candidate = {
-                    "doc_id": row[0],
-                    "duplicate_of": row[1],
-                    "cluster_id": row[2],
-                    "reason": "similarity_match",
-                }
-
-        return best_candidate
-
-
-DEDUPLICATION_STRATEGY: DeduplicationStrategy = FingerprintSimilarityDeduplicator()
-
-
-@contextmanager
-def get_connection() -> Generator[psycopg.Connection, None, None]:
-    conn = psycopg.connect(CONFIG.database_url)
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-def normalize_for_fingerprint(value: Optional[str]) -> str:
-    if not value:
-        return ""
-    normalized = value.casefold()
-    normalized = re.sub(r"\s+", " ", normalized)
-    normalized = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
-    normalized = re.sub(r"\s+", " ", normalized)
-    return normalized.strip()
-
-
-def compute_text_fingerprint(text: str) -> str:
-    normalized_text = normalize_for_fingerprint(text)
-    return hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
-
-
-def similarity(left: Optional[str], right: Optional[str]) -> float:
-    if not left or not right:
-        return 0.0
-    return SequenceMatcher(a=left, b=right).ratio()
-
-
-def extract_title(document: NormalizedDocument) -> Optional[str]:
-    raw_payload = document.raw_payload or {}
-    for key in ("title", "headline", "subject"):
-        value = raw_payload.get(key)
-        if isinstance(value, str) and value.strip():
-            return value
-    return None
-
-
-def _resolve_duplicate_link(candidate: Optional[dict], doc_id: str) -> tuple[Optional[str], str]:
-    if not candidate:
-        return None, str(uuid.uuid4())
-
-    canonical_doc_id = candidate.get("duplicate_of") or candidate["doc_id"]
-    cluster_id = candidate.get("cluster_id") or canonical_doc_id
-
-    if canonical_doc_id == doc_id:
-        return None, cluster_id
-
-    return canonical_doc_id, cluster_id
-
-
-def _upsert_document_fingerprint(cur: psycopg.Cursor, document: NormalizedDocument) -> None:
-    normalized_text = normalize_for_fingerprint(document.text)
-    normalized_title = normalize_for_fingerprint(extract_title(document)) or None
-    text_fingerprint = compute_text_fingerprint(document.text)
-
-    candidate = DEDUPLICATION_STRATEGY.find_candidate(
-        cur,
-        doc_id=document.doc_id,
-        text_fingerprint=text_fingerprint,
-        normalized_title=normalized_title,
-        normalized_text=normalized_text,
-    )
-    duplicate_of, cluster_id = _resolve_duplicate_link(candidate, document.doc_id)
-
-    cur.execute(
-        """
-        INSERT INTO document_fingerprints (
-            doc_id,
-            text_fingerprint,
-            normalized_title,
-            normalized_text,
-            duplicate_of,
-            cluster_id,
-            dedup_method
-        ) VALUES (
-            %(doc_id)s,
-            %(text_fingerprint)s,
-            %(normalized_title)s,
-            %(normalized_text)s,
-            %(duplicate_of)s,
-            %(cluster_id)s,
-            %(dedup_method)s
-        )
-        ON CONFLICT (doc_id) DO UPDATE
-        SET
-            text_fingerprint = EXCLUDED.text_fingerprint,
-            normalized_title = EXCLUDED.normalized_title,
-            normalized_text = EXCLUDED.normalized_text,
-            duplicate_of = EXCLUDED.duplicate_of,
-            cluster_id = EXCLUDED.cluster_id,
-            dedup_method = EXCLUDED.dedup_method,
-            updated_at = NOW();
-        """,
-        {
-            "doc_id": document.doc_id,
-            "text_fingerprint": text_fingerprint,
-            "normalized_title": normalized_title,
-            "normalized_text": normalized_text,
-            "duplicate_of": duplicate_of,
-            "cluster_id": cluster_id,
-            "dedup_method": candidate.get("reason") if candidate else "none",
-        },
-    )
-
-
-def upsert_document(document: NormalizedDocument) -> None:
-    query = """
-    INSERT INTO normalized_documents (
-        doc_id,
-        source_type,
-        source_id,
-        parent_id,
-        text,
-        media_type,
-        created_at,
-        collected_at,
-        author_id,
-        is_official,
-        reach,
-        likes,
-        reposts,
-        comments_count,
-        region_hint,
-        geo_lat,
-        geo_lon,
-        raw_payload
-    ) VALUES (
-        %(doc_id)s,
-        %(source_type)s,
-        %(source_id)s,
-        %(parent_id)s,
-        %(text)s,
-        %(media_type)s,
-        %(created_at)s,
-        %(collected_at)s,
-        %(author_id)s,
-        %(is_official)s,
-        %(reach)s,
-        %(likes)s,
-        %(reposts)s,
-        %(comments_count)s,
-        %(region_hint)s,
-        %(geo_lat)s,
-        %(geo_lon)s,
-        %(raw_payload)s::jsonb
-    )
-    ON CONFLICT (doc_id) DO UPDATE
-    SET
-        source_type = EXCLUDED.source_type,
-        source_id = EXCLUDED.source_id,
-        parent_id = EXCLUDED.parent_id,
-        text = EXCLUDED.text,
-        media_type = EXCLUDED.media_type,
-        created_at = EXCLUDED.created_at,
-        collected_at = EXCLUDED.collected_at,
-        author_id = EXCLUDED.author_id,
-        is_official = EXCLUDED.is_official,
-        reach = EXCLUDED.reach,
-        likes = EXCLUDED.likes,
-        reposts = EXCLUDED.reposts,
-        comments_count = EXCLUDED.comments_count,
-        region_hint = EXCLUDED.region_hint,
-        geo_lat = EXCLUDED.geo_lat,
-        geo_lon = EXCLUDED.geo_lon,
-        raw_payload = EXCLUDED.raw_payload;
-    """
-
-    payload = document.model_dump(mode="json")
-    payload["raw_payload"] = json.dumps(payload["raw_payload"], ensure_ascii=False)
-
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, payload)
-            _upsert_document_fingerprint(cur, document)
-parser_project/apply_schema.py
-import psycopg
-
-from config import load_config, validate_db_config
-
-CONFIG = load_config()
-validate_db_config(CONFIG)
-
-sql = """
-CREATE TABLE IF NOT EXISTS normalized_documents (
-    doc_id TEXT PRIMARY KEY,
-    source_type TEXT NOT NULL,
-    source_id TEXT NOT NULL,
-    parent_id TEXT NULL,
-
-    text TEXT NOT NULL,
-    media_type TEXT NOT NULL,
-
-    created_at TIMESTAMPTZ NOT NULL,
-    collected_at TIMESTAMPTZ NOT NULL,
-
-    author_id TEXT NOT NULL,
-    is_official BOOLEAN NOT NULL,
-
-    reach INTEGER NOT NULL,
-    likes INTEGER NOT NULL,
-    reposts INTEGER NOT NULL,
-    comments_count INTEGER NOT NULL,
-
-    region_hint TEXT NULL,
-    geo_lat DOUBLE PRECISION NULL,
-    geo_lon DOUBLE PRECISION NULL,
-
-    raw_payload JSONB NOT NULL,
-    inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_normalized_documents_source_type
-    ON normalized_documents(source_type);
-
-CREATE INDEX IF NOT EXISTS idx_normalized_documents_source_id
-    ON normalized_documents(source_id);
-
-CREATE INDEX IF NOT EXISTS idx_normalized_documents_created_at
-    ON normalized_documents(created_at);
-
-CREATE INDEX IF NOT EXISTS idx_normalized_documents_author_id
-    ON normalized_documents(author_id);
-
-CREATE TABLE IF NOT EXISTS document_fingerprints (
-    doc_id TEXT PRIMARY KEY REFERENCES normalized_documents(doc_id) ON DELETE CASCADE,
-    text_fingerprint TEXT NOT NULL,
-    normalized_title TEXT NULL,
-    normalized_text TEXT NOT NULL,
-    duplicate_of TEXT NULL REFERENCES normalized_documents(doc_id) ON DELETE SET NULL,
-    cluster_id TEXT NOT NULL,
-    dedup_method TEXT NOT NULL DEFAULT 'none',
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_document_fingerprints_text_fingerprint
-    ON document_fingerprints(text_fingerprint);
-
-CREATE INDEX IF NOT EXISTS idx_document_fingerprints_duplicate_of
-    ON document_fingerprints(duplicate_of);
-
-CREATE INDEX IF NOT EXISTS idx_document_fingerprints_cluster_id
-    ON document_fingerprints(cluster_id);
-"""
-
-with psycopg.connect(CONFIG.database_url) as conn:
-    with conn.cursor() as cur:
-        cur.execute(sql)
-    conn.commit()
-
-print("✅ Таблица normalized_documents создана или уже существует в удалённой БД.")
-parser_project/create_topic.py
-from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import TopicAlreadyExistsError
-
-from config import load_config
-
-CONFIG = load_config()
-
-
-def main():
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=CONFIG.kafka_bootstrap_servers,
-        client_id="topic-creator",
-    )
-
-    topic = NewTopic(
-        name=CONFIG.kafka_topic,
-        num_partitions=1,
-        replication_factor=1,
-    )
-
-    try:
-        admin_client.create_topics(new_topics=[topic], validate_only=False)
-        print(f"Топик создан: {CONFIG.kafka_topic}")
-    except TopicAlreadyExistsError:
-        print(f"Топик уже существует: {CONFIG.kafka_topic}")
-    finally:
-        admin_client.close()
-
-
-if __name__ == "__main__":
-    main()
-parser_project/check_saved_rows.py
-import psycopg
-
-from config import load_config, validate_db_config
-
-CONFIG = load_config()
-validate_db_config(CONFIG)
-
-with psycopg.connect(CONFIG.database_url) as conn:
-    with conn.cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM normalized_documents;")
-        print("Всего записей:", cur.fetchone()[0])
-
-        cur.execute("""
-            SELECT source_type, text
-            FROM normalized_documents
-            ORDER BY created_at DESC
-            LIMIT 5;
-        """)
-
-        for row in cur.fetchall():
-            print(row)
-parser_project/test_db_connection.py
-import psycopg
-
-from config import load_config, validate_db_config
-
-CONFIG = load_config()
-validate_db_config(CONFIG)
-
-with psycopg.connect(CONFIG.database_url) as conn:
-    with conn.cursor() as cur:
-        cur.execute("SELECT current_database(), current_user, inet_server_addr(), inet_server_port();")
-        print(cur.fetchone())
-parser_project/kafka_producer.py
-import json
-from kafka import KafkaProducer
-
-from config import load_config
-
-CONFIG = load_config()
-
-
-producer = KafkaProducer(
-    bootstrap_servers=CONFIG.kafka_bootstrap_servers,
-    value_serializer=lambda v: json.dumps(
-        v,
-        ensure_ascii=False,
-        default=str,
-    ).encode("utf-8"),
-)
-
-
-def send_document(topic: str, document: dict) -> None:
-    producer.send(topic, document)
-    producer.flush()
-Изменения закоммичены и PR-сообщение создано через make_pr.
-
-5)
-Summary
-Добавил новый единый диагностический скрипт parser_project/check_pipeline.py, который делает последовательную health-check проверку ingestion-пайплайна и завершает выполнение с явным шагом ошибки через [ERROR] ....
-
-В скрипт включены проверки:
-
-доступности PostgreSQL,
-
-наличия таблицы normalized_documents,
-
-доступности Kafka,
-
-наличия нужного topic,
-
-общего числа записей,
-
-числа записей по source_type,
-
-последних 5 документов.
-
-Вывод структурирован в формате [OK] / [INFO] / [ERROR] + финальный сводный отчёт Pipeline health report, чтобы быстро видеть статус ingestion в одной команде.
-
-Старые тестовые/вспомогательные скрипты не удалялись и не изменялись (добавлен только новый файл).
-
-Полный код нового файла (parser_project/check_pipeline.py)
-from __future__ import annotations
-
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Any
-
-import psycopg
-from kafka import KafkaAdminClient
-
-from config import load_config, validate_consumer_config, validate_db_config
-
-
-@dataclass(frozen=True)
-class PipelineStats:
-    total_rows: int
-    rows_by_source_type: list[tuple[str, int]]
-    latest_documents: list[tuple[str, str, datetime, str]]
-
-
-def _ok(message: str) -> None:
-    print(f"[OK] {message}")
-
-
-def _info(message: str) -> None:
-    print(f"[INFO] {message}")
-
-
-def _fail(step: str, error: Exception) -> None:
-    print(f"[ERROR] Шаг '{step}' завершился с ошибкой: {error}")
-    raise SystemExit(1) from error
-
-
-def _check_postgres(database_url: str) -> psycopg.Connection[Any]:
-    step = "Проверка доступности PostgreSQL"
-    try:
-        conn = psycopg.connect(database_url)
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1;")
-            cur.fetchone()
-        _ok("PostgreSQL доступен")
-        return conn
-    except Exception as error:  # noqa: BLE001
-        _fail(step, error)
-
-
-def _check_table_exists(conn: psycopg.Connection[Any], table_name: str) -> None:
-    step = f"Проверка наличия таблицы {table_name}"
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                      AND table_name = %s
-                );
-                """,
-                (table_name,),
-            )
-            exists = cur.fetchone()[0]
-
-        if not exists:
-            raise RuntimeError(f"Таблица {table_name} не найдена в схеме public")
-
-        _ok(f"Таблица {table_name} найдена")
-    except Exception as error:  # noqa: BLE001
-        _fail(step, error)
-
-
-def _collect_db_stats(conn: psycopg.Connection[Any]) -> PipelineStats:
-    step = "Сбор статистики по normalized_documents"
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM normalized_documents;")
-            total_rows = cur.fetchone()[0]
-
-            cur.execute(
-                """
-                SELECT source_type, COUNT(*) AS rows_count
-                FROM normalized_documents
-                GROUP BY source_type
-                ORDER BY rows_count DESC, source_type ASC;
-                """
-            )
-            rows_by_source_type = cur.fetchall()
-
-            cur.execute(
-                """
-                SELECT doc_id, source_type, created_at, LEFT(text, 120)
-                FROM normalized_documents
-                ORDER BY created_at DESC
-                LIMIT 5;
-                """
-            )
-            latest_documents = cur.fetchall()
-
-        _ok("Статистика по таблице собрана")
-        return PipelineStats(
-            total_rows=total_rows,
-            rows_by_source_type=rows_by_source_type,
-            latest_documents=latest_documents,
-        )
-    except Exception as error:  # noqa: BLE001
-        _fail(step, error)
-
-
-def _check_kafka(bootstrap_servers: str, topic_name: str) -> None:
-    step_connect = "Проверка доступности Kafka"
-    step_topic = f"Проверка наличия Kafka topic {topic_name}"
-
-    client = None
-    try:
-        client = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
-        _ok("Kafka доступен")
-    except Exception as error:  # noqa: BLE001
-        _fail(step_connect, error)
-
-    try:
-        topics = client.list_topics()
-        if topic_name not in topics:
-            raise RuntimeError(f"Topic '{topic_name}' отсутствует")
-        _ok(f"Kafka topic '{topic_name}' найден")
-    except Exception as error:  # noqa: BLE001
-        _fail(step_topic, error)
-    finally:
-        if client is not None:
-            client.close()
-
-
-def _print_report(stats: PipelineStats) -> None:
-    print("\n================ Pipeline health report ================")
-    _info(f"Всего записей в normalized_documents: {stats.total_rows}")
-
-    print("\n[INFO] Записи по source_type:")
-    if not stats.rows_by_source_type:
-        print("  - данных пока нет")
-    else:
-        for source_type, count in stats.rows_by_source_type:
-            print(f"  - {source_type}: {count}")
-
-    print("\n[INFO] Последние 5 документов:")
-    if not stats.latest_documents:
-        print("  - документов пока нет")
-    else:
-        for doc_id, source_type, created_at, text_preview in stats.latest_documents:
-            preview = (text_preview or "").replace("\n", " ").strip()
-            print(f"  - {created_at.isoformat()} | {source_type} | {doc_id} | {preview}")
-
-    print("========================================================")
-
-
-def main() -> None:
-    config = load_config()
-
-    try:
-        validate_db_config(config)
-        validate_consumer_config(config)
-    except Exception as error:  # noqa: BLE001
-        _fail("Проверка обязательных переменных окружения", error)
-
-    conn = _check_postgres(config.database_url)
-    try:
-        _check_table_exists(conn, "normalized_documents")
-        stats = _collect_db_stats(conn)
-    finally:
-        conn.close()
-
-    _check_kafka(config.kafka_bootstrap_servers, config.kafka_topic)
-    _print_report(stats)
-
-
-if __name__ == "__main__":
-    main()
 Testing
 
-✅ python -m py_compile parser_project/check_pipeline.py
+✅ python -m py_compile parser_project/ml_consumer.py
 
-✅ git -C /workspace/AIAssistentsobjectAnalitick commit -m "Add unified ingestion pipeline diagnostics script"
 
-6)
-Summary
-Расширил parser_project/docker-compose.yml до полного локального стенда ingestion: добавлены postgres, consumer, vk-collector, rss-collector; настроены depends_on с condition: service_healthy, healthcheck’и, env_file/environment, а также volume для данных Postgres и автоинициализация схемы из ./sql.
 
-Добавил parser_project/Dockerfile для Python-приложений ingestion (единая сборка для consumer/collectors).
+6)Summary
+Добавил новый сервис ml-consumer в parser_project/docker-compose.yml с минимальными изменениями, не затрагивая существующие сервисы. 
 
-Обновил parser_project/.env.example: добавлены переменные POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD и локальный DATABASE_URL для запуска с хоста.
+Для ml-consumer настроил:
 
-Обновил README.md с пошаговыми командами запуска/проверки/остановки локального ingestion-стенда через Docker Compose.
+тот же Dockerfile,
 
-Полный код всех изменённых файлов
-parser_project/docker-compose.yml
-services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-    healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
+команду python ml_consumer.py,
 
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+env_file: .env,
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    depends_on:
-      kafka:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+KAFKA_BOOTSTRAP_SERVERS=kafka:29092,
 
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    ports:
-      - "5432:5432"
-    env_file:
-      - .env
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-hack_db}
-      POSTGRES_USER: ${POSTGRES_USER:-hack_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hack_pass}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./sql:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hack_user} -d ${POSTGRES_DB:-hack_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+DATABASE_URL идентичный сервису consumer,
 
-  consumer:
+depends_on с kafka: service_healthy и postgres: service_healthy. 
+
+Дополнительные правки в Dockerfile и requirements.txt не потребовались. 
+
+Финальный фрагмент docker-compose.yml с новым сервисом
+  ml-consumer:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python consumer.py
+    command: python ml_consumer.py
     restart: unless-stopped
     env_file:
       - .env
@@ -3541,141 +404,210 @@ services:
       postgres:
         condition: service_healthy
 
-  vk-collector:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: python collect_vk_posts.py
-    env_file:
-      - .env
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    depends_on:
-      kafka:
-        condition: service_healthy
+Testing
 
-  rss-collector:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: python collect_rss.py
-    env_file:
-      - .env
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    depends_on:
-      kafka:
-        condition: service_healthy
+⚠️ docker compose -f parser_project/docker-compose.yml config >/tmp/compose.out && echo OK (в окружении отсутствует docker: command not found).
 
-volumes:
-  postgres_data:
-parser_project/Dockerfile
-FROM python:3.12-slim
+✅ git -C /workspace/AIAssistentsobjectAnalitick status --short
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+✅ git -C /workspace/AIAssistentsobjectAnalitick add parser_project/docker-compose.yml && git -C /workspace/AIAssistentsobjectAnalitick commit -m "Add dedicated ml-consumer service to compose"
 
-WORKDIR /app
+7)Summary
+Добавил новый SQL-файл parser_project/sql/004_create_documents_with_ml_view.sql и создал documents_with_ml через CREATE OR REPLACE VIEW с нужным набором полей для API/UI. VIEW собирается через LEFT JOIN из normalized_documents, document_fingerprints, ml_results.
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
+Для удобства API-полей добавлены алиасы:
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+mr.status AS ml_status
 
-COPY . .
+mr.error_message AS ml_error_message.
 
-CMD ["python", "consumer.py"]
-parser_project/.env.example
-VK_TOKEN=your_vk_token
-VK_API_VERSION=5.131
-VK_GROUP_DOMAINS=etorostovnadonu,rostov_glavniy,news161
-VK_POSTS_PER_GROUP=100
-VK_PAGE_SIZE=20
-DAYS_BACK=7
-RSS_FEEDS=https://example.com/rss,https://another.example/feed.xml
+Обновил apply_schema.py (сообщение после применения схемы), при этом логика применения уже остается совместимой и подхватывает новый 004_*.sql автоматически через glob("*.sql").
 
-PORTAL_SOURCE=mock_local_file
-PORTAL_APPEALS_FILE=portal_appeals.jsonl
-MAX_MOCK_DATA_PATH=parser_project/mock/max_messages.json
+Testing
 
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-KAFKA_TOPIC=raw.documents
-KAFKA_GROUP_ID=documents-consumer-group
+✅ python -m py_compile parser_project/apply_schema.py
 
-# Локальный доступ с хоста (внутри docker-compose consumer получит service-name postgres автоматически)
-POSTGRES_DB=hack_db
-POSTGRES_USER=hack_user
-POSTGRES_PASSWORD=hack_pass
-DATABASE_URL=postgresql://hack_user:hack_pass@localhost:5432/hack_db
+✅ git status --short
 
-FAILED_MESSAGES_PATH=failed_messages.jsonl
-README.md (добавленный блок)
-## Локальный запуск ingestion-пайплайна (Docker Compose)
+✅ git diff -- parser_project/apply_schema.py parser_project/sql/004_create_documents_with_ml_view.sql
 
-Добавлен полноценный стенд в `parser_project/docker-compose.yml`:
-- Kafka + Zookeeper + Kafka UI
-- PostgreSQL (с автоинициализацией схемы из `parser_project/sql/*.sql`)
-- `consumer`
-- `vk-collector`
-- `rss-collector`
+SQL view целиком
+CREATE OR REPLACE VIEW documents_with_ml AS
+SELECT
+    nd.doc_id,
+    nd.source_type,
+    nd.source_id,
+    nd.text,
+    nd.created_at,
+    nd.collected_at,
+    nd.author_id,
+    nd.is_official,
+    nd.reach,
+    nd.likes,
+    nd.reposts,
+    nd.comments_count,
+    nd.region_hint,
+    nd.geo_lat,
+    nd.geo_lon,
+    df.duplicate_of,
+    df.cluster_id,
+    df.dedup_method,
+    mr.summary,
+    mr.score,
+    mr.category,
+    mr.model_version,
+    mr.prompt_version,
+    mr.status AS ml_status,
+    mr.error_message AS ml_error_message,
+    mr.processed_at
+FROM normalized_documents AS nd
+LEFT JOIN document_fingerprints AS df
+    ON df.doc_id = nd.doc_id
+LEFT JOIN ml_results AS mr
+    ON mr.doc_id = nd.doc_id;
 
-### 1) Подготовка окружения
 
-```bash
-cd parser_project
-cp .env.example .env
-Проверьте/заполните минимум:
+8)Summary
+Обновил parser_project/check_pipeline.py под быстрый smoke-check полного контура ingestion -> postgres -> ml -> postgres: теперь скрипт проверяет наличие таблиц normalized_documents, document_fingerprints, ml_results и view documents_with_ml, с понятными ошибками при отсутствии объектов. 
 
-VK_TOKEN
+Добавил вывод количества строк в normalized_documents и ml_results, а также вывод последних 5 записей из documents_with_ml в читаемом виде. 
 
-VK_GROUP_DOMAINS
+Сценарий остался простым для локального запуска (python check_pipeline.py из parser_project) без сложного CLI и без тяжёлых проверок вне PostgreSQL. 
 
-RSS_FEEDS
+Testing
 
-Для Postgres можно оставить дефолты, либо задать:
+✅ python -m py_compile parser_project/check_pipeline.py
 
-POSTGRES_DB
+⚠️ python parser_project/check_pipeline.py (в текущем окружении недоступен PostgreSQL-хост: network unreachable)
 
-POSTGRES_USER
+Ниже финальный код parser_project/check_pipeline.py целиком:
 
-POSTGRES_PASSWORD
+from __future__ import annotations
 
-2) Поднять весь стенд
-docker compose up -d --build
-3) Проверить состояние сервисов
-docker compose ps
-4) Смотреть логи
-docker compose logs -f consumer
-docker compose logs -f vk-collector
-docker compose logs -f rss-collector
-5) Остановить стенд
-docker compose down
-Если нужно удалить volume с БД:
+from typing import Any
 
-docker compose down -v
+import psycopg
 
-**Testing**
-* ⚠️ `cd parser_project && docker compose config > /tmp/parser_compose_rendered.yml && echo OK` (в текущем окружении отсутствует `docker`: `/bin/bash: docker: command not found`).
+from config import load_config, validate_db_config
 
-файла (4)
 
-README.md
-README.md
-+58
--0
+REQUIRED_TABLES = (
+    "normalized_documents",
+    "document_fingerprints",
+    "ml_results",
+)
+REQUIRED_VIEW = "documents_with_ml"
 
-.env.example
-parser_project/.env.example
-+6
--1
 
-Dockerfile
-parser_project/Dockerfile
-Новый
+def _ok(message: str) -> None:
+    print(f"[OK] {message}")
 
-docker-compose.yml
-parser_project/docker-compose.yml
-+88
--4
+
+def _info(message: str) -> None:
+    print(f"[INFO] {message}")
+
+
+def _fail(message: str) -> None:
+    print(f"[ERROR] {message}")
+    raise SystemExit(1)
+
+
+def _exists(conn: psycopg.Connection[Any], object_type: str, object_name: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_type = %s
+                  AND table_name = %s
+            );
+            """,
+            (object_type, object_name),
+        )
+        return bool(cur.fetchone()[0])
+
+
+def _check_required_objects(conn: psycopg.Connection[Any]) -> None:
+    missing_tables = [table for table in REQUIRED_TABLES if not _exists(conn, "BASE TABLE", table)]
+    if missing_tables:
+        _fail(
+            "Отсутствуют обязательные таблицы: "
+            + ", ".join(missing_tables)
+            + ". Проверьте миграции и этапы ingestion/ml."
+        )
+
+    if not _exists(conn, "VIEW", REQUIRED_VIEW):
+        _fail(
+            f"Отсутствует обязательное представление {REQUIRED_VIEW}. "
+            "Проверьте SQL-миграции для витрины с ML-результатами."
+        )
+
+    _ok("Все обязательные таблицы и представление найдены")
+
+
+def _count_rows(conn: psycopg.Connection[Any], table_name: str) -> int:
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) FROM {table_name};")
+        return int(cur.fetchone()[0])
+
+
+def _fetch_latest_documents_with_ml(conn: psycopg.Connection[Any], limit: int = 5) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(
+            """
+            SELECT *
+            FROM documents_with_ml
+            ORDER BY created_at DESC NULLS LAST
+            LIMIT %s;
+            """,
+            (limit,),
+        )
+        return list(cur.fetchall())
+
+
+def _print_documents(rows: list[dict[str, Any]]) -> None:
+    print("\n[INFO] Последние 5 записей из documents_with_ml:")
+    if not rows:
+        print("  - данных пока нет")
+        return
+
+    for index, row in enumerate(rows, start=1):
+        rendered = ", ".join(f"{key}={value!r}" for key, value in row.items())
+        print(f"  {index}. {rendered}")
+
+
+def main() -> None:
+    config = load_config()
+
+    try:
+        validate_db_config(config)
+    except Exception as error:  # noqa: BLE001
+        _fail(f"Ошибка конфигурации: {error}")
+
+    try:
+        with psycopg.connect(config.database_url) as conn:
+            _ok("Подключение к PostgreSQL установлено")
+            _check_required_objects(conn)
+
+            normalized_count = _count_rows(conn, "normalized_documents")
+            ml_results_count = _count_rows(conn, "ml_results")
+
+            _info(f"Количество записей в normalized_documents: {normalized_count}")
+            _info(f"Количество записей в ml_results: {ml_results_count}")
+
+            latest_rows = _fetch_latest_documents_with_ml(conn, limit=5)
+            _print_documents(latest_rows)
+
+    except SystemExit:
+        raise
+    except Exception as error:  # noqa: BLE001
+        _fail(f"Ошибка smoke-check pipeline: {error}")
+
+
+if __name__ == "__main__":
+    main()
+
+файл (1)
+
