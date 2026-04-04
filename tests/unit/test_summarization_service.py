@@ -147,7 +147,7 @@ def test_service_retries_after_invalid_output_and_persists_valid_second_attempt(
         config=SummarizationServiceConfig(
             postgres_dsn=None,
             prompts_path=str(prompt_path),
-            documents_table="normalized_documents",
+            documents_table="normalized_messages",
         ),
     )
     service.initialize()

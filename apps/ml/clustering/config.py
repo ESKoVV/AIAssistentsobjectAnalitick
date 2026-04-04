@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 
 DEFAULT_INPUT_TABLE = "embeddings"
-DEFAULT_DOCUMENTS_TABLE = "documents"
+DEFAULT_DOCUMENTS_TABLE = "normalized_messages"
 DEFAULT_UPDATED_TOPIC = "clusters.updated"
 DEFAULT_FULL_RECOMPUTE_WINDOW_HOURS = 72
 DEFAULT_GROWTH_RECENT_HOURS = 6

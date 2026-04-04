@@ -151,6 +151,7 @@ class InMemoryRankingRepository:
         self.documents: dict[str, RankingDocumentRecord] = {}
         self.document_sentiments: dict[str, float] = {}
         self.document_reaches: dict[str, int] = {}
+        self.document_quality_weights: dict[str, float] = {}
         self.rankings: list[StoredRankingSnapshot] = []
         self.upstream_ready = True
 
@@ -211,6 +212,7 @@ class InMemoryRankingRepository:
                             reach=self.document_reaches.get(doc_id, per_doc_reach),
                             region=cluster.geo_regions[index % len(cluster.geo_regions)] if cluster.geo_regions else None,
                             raw_payload={},
+                            quality_weight=self.document_quality_weights.get(doc_id, 1.0),
                             sentiment_score=self.document_sentiments.get(doc_id, default_sentiment),
                         ),
                     )
@@ -226,6 +228,7 @@ class InMemoryRankingRepository:
                         reach=document.reach,
                         region=document.region,
                         raw_payload=dict(document.raw_payload),
+                        quality_weight=self.document_quality_weights.get(doc_id, document.quality_weight),
                         sentiment_score=self.document_sentiments.get(doc_id, document.sentiment_score),
                     ),
                 )
@@ -277,7 +280,7 @@ class PostgresRankingRepository:
         self,
         dsn: str,
         *,
-        documents_table: str = "normalized_documents",
+        documents_table: str = "normalized_messages",
         sentiments_table: str = "document_sentiments",
     ) -> None:
         self._dsn = dsn
@@ -360,6 +363,7 @@ class PostgresRankingRepository:
                    d.reach,
                    d.region_hint,
                    d.raw_payload,
+                   COALESCE(d.quality_weight, 1.0) AS quality_weight,
                    ds.sentiment_score
             FROM cluster_documents cd
             JOIN {self._documents_table} d ON d.doc_id = cd.doc_id
@@ -591,7 +595,8 @@ def _row_to_document_record(row: Sequence[Any]) -> RankingDocumentRecord:
         reach=int(row[6]),
         region=str(row[7]) if row[7] is not None else None,
         raw_payload=dict(row[8]),
-        sentiment_score=float(row[9]) if row[9] is not None else None,
+        quality_weight=float(row[9]),
+        sentiment_score=float(row[10]) if row[10] is not None else None,
     )
 
 

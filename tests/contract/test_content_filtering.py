@@ -33,6 +33,8 @@ EXPECTED_FIELDS = {
     "filter_status",
     "filter_reasons",
     "quality_weight",
+    "anomaly_flags",
+    "anomaly_confidence",
 }
 
 
@@ -48,6 +50,8 @@ def test_drop_status_preserves_document_for_audit() -> None:
     assert filtered.filter_status is FilterStatus.DROP
     assert filtered.filter_reasons == ("short_noise",)
     assert filtered.quality_weight == 0.0
+    assert filtered.anomaly_flags == ()
+    assert filtered.anomaly_confidence == 0.0
 
 
 def test_review_status_keeps_document_in_pipeline_with_reason() -> None:
@@ -62,6 +66,8 @@ def test_review_status_keeps_document_in_pipeline_with_reason() -> None:
     assert filtered.filter_reasons == ("complaint_like",)
     assert filtered.quality_weight > 0.0
     assert filtered.quality_weight < 1.0
+    assert filtered.anomaly_flags == ()
+    assert filtered.anomaly_confidence == 0.0
 
 
 def test_filter_reasons_are_present_for_review_and_drop_statuses() -> None:

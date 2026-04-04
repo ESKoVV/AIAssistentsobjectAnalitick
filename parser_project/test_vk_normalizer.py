@@ -1,4 +1,4 @@
-from normalizers.vk import normalize_vk_post
+from normalizers.vk import build_vk_post_raw_message
 
 # фейковый VK пост (как будто с API)
 raw_post = {
@@ -13,6 +13,6 @@ raw_post = {
     "comments": {"count": 20}
 }
 
-doc = normalize_vk_post(raw_post)
+doc = build_vk_post_raw_message(raw_post)
 
 print(doc)

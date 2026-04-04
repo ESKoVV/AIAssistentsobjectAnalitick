@@ -43,6 +43,8 @@ def deserialize_enriched_document(payload: Mapping[str, Any]) -> EnrichedDocumen
         filter_status=FilterStatus(normalized["filter_status"]),
         filter_reasons=tuple(str(reason) for reason in normalized.get("filter_reasons", ())),
         quality_weight=float(normalized["quality_weight"]),
+        anomaly_flags=tuple(str(flag) for flag in normalized.get("anomaly_flags", ())),
+        anomaly_confidence=float(normalized.get("anomaly_confidence", 0.0)),
         normalized_text=str(normalized["normalized_text"]),
         token_count=int(normalized["token_count"]),
         cleanup_flags=tuple(str(flag) for flag in normalized.get("cleanup_flags", ())),

@@ -12,9 +12,8 @@ import requests
 from bs4 import BeautifulSoup
 
 from config import _csv_env, load_config, validate_portal_config
-from id_builders import build_portal_appeal_doc_id
 from kafka_producer import send_document
-from schema import MediaType, NormalizedDocument, SourceType
+from schema import MediaType, RawMessage, SourceType
 
 CONFIG = load_config()
 PORTAL_URLS = _csv_env("PORTAL_URLS")
@@ -311,19 +310,16 @@ def parse_datetime_or_now(value: Any) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def normalize_portal_appeal(appeal: RawPortalAppeal) -> NormalizedDocument:
-    """Нормализует обращение гражданина в единый контракт документа."""
-
+def build_portal_raw_message(appeal: RawPortalAppeal) -> RawMessage:
     collected_at = datetime.now(timezone.utc)
 
-    return NormalizedDocument(
-        doc_id=build_portal_appeal_doc_id(appeal.appeal_id),
+    return RawMessage(
         source_type=SourceType.PORTAL_APPEAL,
         source_id=appeal.appeal_id,
         parent_id=None,
         text=appeal.text,
         media_type=MediaType.TEXT,
-        created_at=appeal.created_at,
+        created_at_utc=appeal.created_at,
         collected_at=collected_at,
         author_id=appeal.author_id or "anonymous",
         is_official=False,
@@ -331,14 +327,11 @@ def normalize_portal_appeal(appeal: RawPortalAppeal) -> NormalizedDocument:
         likes=0,
         reposts=0,
         comments_count=0,
-        region_hint=appeal.region_hint,
-        geo_lat=None,
-        geo_lon=None,
         raw_payload=appeal.raw_payload,
     )
 
 
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
+def save_document_jsonl(path: str, doc: RawMessage) -> None:
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(doc.model_dump(), ensure_ascii=False, default=str) + "\n")
 
@@ -396,7 +389,7 @@ def main() -> None:
 
     for appeal in loader.iter_appeals():
         try:
-            doc = normalize_portal_appeal(appeal)
+            doc = build_portal_raw_message(appeal)
             send_document(CONFIG.kafka_topic, doc.model_dump())
             save_document_jsonl("documents.jsonl", doc)
 
@@ -415,3 +408,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+normalize_portal_appeal = build_portal_raw_message

@@ -1,1 +1,121 @@
-# TODO
+defaults:
+  timezone: "+03:00"
+  is_official: false
+  default_geo_confidence: 0.4
+
+sources:
+  vk_post:
+    source: vk
+    entity_type: post
+    default_region: "Волгоградская область"
+    default_region_id: "ru-vgg"
+    default_municipality_id: "volgograd"
+    metadata_geo:
+      region_id: "ru-vgg"
+      municipality_id: "volgograd"
+      label: "vk-community-profile"
+    toponym_index:
+      волгоград:
+        region_id: "ru-vgg"
+        municipality_id: "volgograd"
+      волжский:
+        region_id: "ru-vgg"
+        municipality_id: "volzhsky"
+      ростов-на-дону:
+        region_id: "ru-ros"
+        municipality_id: "rostov-na-donu"
+
+  vk_comment:
+    source: vk
+    entity_type: comment
+    default_region: "Волгоградская область"
+    default_region_id: "ru-vgg"
+    default_municipality_id: "volgograd"
+    metadata_geo:
+      region_id: "ru-vgg"
+      municipality_id: "volgograd"
+      label: "vk-community-profile"
+    toponym_index:
+      волгоград:
+        region_id: "ru-vgg"
+        municipality_id: "volgograd"
+      волжский:
+        region_id: "ru-vgg"
+        municipality_id: "volzhsky"
+      ростов-на-дону:
+        region_id: "ru-ros"
+        municipality_id: "rostov-na-donu"
+
+  max_post:
+    source: max
+    entity_type: post
+    default_region: "Ростовская область"
+    default_region_id: "ru-ros"
+    default_municipality_id: "rostov-na-donu"
+    metadata_geo:
+      region_id: "ru-ros"
+      municipality_id: "rostov-na-donu"
+      label: "max-channel-profile"
+    toponym_index:
+      ростов:
+        region_id: "ru-ros"
+        municipality_id: "rostov-na-donu"
+      волгоград:
+        region_id: "ru-vgg"
+        municipality_id: "volgograd"
+
+  max_comment:
+    source: max
+    entity_type: comment
+    default_region: "Ростовская область"
+    default_region_id: "ru-ros"
+    default_municipality_id: "rostov-na-donu"
+    metadata_geo:
+      region_id: "ru-ros"
+      municipality_id: "rostov-na-donu"
+      label: "max-channel-profile"
+    toponym_index:
+      ростов:
+        region_id: "ru-ros"
+        municipality_id: "rostov-na-donu"
+      волгоград:
+        region_id: "ru-vgg"
+        municipality_id: "volgograd"
+
+  rss_article:
+    source: rss
+    entity_type: article
+    feed_id: "regional-rss"
+    default_region: "Краснодарский край"
+    default_region_id: "ru-kda"
+    default_municipality_id: "krasnodar"
+    metadata_geo:
+      region_id: "ru-kda"
+      municipality_id: "krasnodar"
+      label: "rss-feed-profile"
+    toponym_index:
+      краснодар:
+        region_id: "ru-kda"
+        municipality_id: "krasnodar"
+      волгоград:
+        region_id: "ru-vgg"
+        municipality_id: "volgograd"
+
+  portal_appeal:
+    source: portal
+    entity_type: appeal
+    is_official: true
+    default_region: "Волгоградская область"
+    default_region_id: "ru-vgg"
+    default_municipality_id: "volgograd"
+    metadata_geo:
+      region_id: "ru-vgg"
+      municipality_id: "volgograd"
+      label: "portal-profile"
+    toponym_index:
+      волгоград:
+        region_id: "ru-vgg"
+        municipality_id: "volgograd"
+      волжский:
+        region_id: "ru-vgg"
+        municipality_id: "volzhsky"

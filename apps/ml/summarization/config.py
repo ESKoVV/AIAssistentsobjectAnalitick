@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 
 DEFAULT_EMBEDDINGS_TABLE = "embeddings"
-DEFAULT_DOCUMENTS_TABLE = "documents"
+DEFAULT_DOCUMENTS_TABLE = "normalized_messages"
 DEFAULT_INPUT_TOPIC = "clusters.updated"
 DEFAULT_OUTPUT_TOPIC = "descriptions.updated"
 DEFAULT_PROMPTS_PATH = "configs/prompts/summarization.md"

@@ -12,6 +12,7 @@ from config import load_config, validate_consumer_config, validate_db_config
 
 @dataclass(frozen=True)
 class PipelineStats:
+    raw_total_rows: int
     total_rows: int
     rows_by_source_type: list[tuple[str, int]]
     latest_documents: list[tuple[str, str, datetime, str]]
@@ -69,16 +70,19 @@ def _check_table_exists(conn: psycopg.Connection[Any], table_name: str) -> None:
 
 
 def _collect_db_stats(conn: psycopg.Connection[Any]) -> PipelineStats:
-    step = "Сбор статистики по normalized_documents"
+    step = "Сбор статистики по raw_messages и normalized_messages"
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM normalized_documents;")
+            cur.execute("SELECT COUNT(*) FROM raw_messages;")
+            raw_total_rows = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM normalized_messages;")
             total_rows = cur.fetchone()[0]
 
             cur.execute(
                 """
                 SELECT source_type, COUNT(*) AS rows_count
-                FROM normalized_documents
+                FROM normalized_messages
                 GROUP BY source_type
                 ORDER BY rows_count DESC, source_type ASC;
                 """
@@ -88,7 +92,7 @@ def _collect_db_stats(conn: psycopg.Connection[Any]) -> PipelineStats:
             cur.execute(
                 """
                 SELECT doc_id, source_type, created_at, LEFT(text, 120)
-                FROM normalized_documents
+                FROM normalized_messages
                 ORDER BY created_at DESC
                 LIMIT 5;
                 """
@@ -97,6 +101,7 @@ def _collect_db_stats(conn: psycopg.Connection[Any]) -> PipelineStats:
 
         _ok("Статистика по таблице собрана")
         return PipelineStats(
+            raw_total_rows=raw_total_rows,
             total_rows=total_rows,
             rows_by_source_type=rows_by_source_type,
             latest_documents=latest_documents,
@@ -130,7 +135,8 @@ def _check_kafka(bootstrap_servers: str, topic_name: str) -> None:
 
 def _print_report(stats: PipelineStats) -> None:
     print("\n================ Pipeline health report ================")
-    _info(f"Всего записей в normalized_documents: {stats.total_rows}")
+    _info(f"Всего записей в raw_messages: {stats.raw_total_rows}")
+    _info(f"Всего записей в normalized_messages: {stats.total_rows}")
 
     print("\n[INFO] Записи по source_type:")
     if not stats.rows_by_source_type:
@@ -161,12 +167,14 @@ def main() -> None:
 
     conn = _check_postgres(config.database_url)
     try:
-        _check_table_exists(conn, "normalized_documents")
+        _check_table_exists(conn, "raw_messages")
+        _check_table_exists(conn, "normalized_messages")
         stats = _collect_db_stats(conn)
     finally:
         conn.close()
 
-    _check_kafka(config.kafka_bootstrap_servers, config.kafka_topic)
+    _check_kafka(config.kafka_bootstrap_servers, config.kafka_raw_topic)
+    _check_kafka(config.kafka_bootstrap_servers, config.kafka_preprocessed_topic)
     _print_report(stats)
 
 

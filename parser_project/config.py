@@ -24,12 +24,14 @@ class AppConfig:
     kafka_bootstrap_servers: str
     kafka_topic: str
     kafka_raw_topic: str
+    kafka_preprocessed_topic: str
     kafka_ml_topic: str
     kafka_ml_results_topic: str
     kafka_group_id: str
     failed_messages_path: Path
 
     database_url: str | None
+    sources_config_path: Path
 
     vk_token: str | None
     vk_api_version: str
@@ -124,11 +126,18 @@ def load_config() -> AppConfig:
         kafka_bootstrap_servers=_text_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092") or "localhost:9092",
         kafka_topic=kafka_raw_topic,
         kafka_raw_topic=kafka_raw_topic,
+        kafka_preprocessed_topic=(
+            _text_env("KAFKA_PREPROCESSED_TOPIC", "preprocessed.documents") or "preprocessed.documents"
+        ),
         kafka_ml_topic=_text_env("KAFKA_ML_TOPIC", "ml.documents") or "ml.documents",
         kafka_ml_results_topic=_text_env("KAFKA_ML_RESULTS_TOPIC", "ml.results") or "ml.results",
         kafka_group_id=_text_env("KAFKA_GROUP_ID", "documents-consumer-group") or "documents-consumer-group",
         failed_messages_path=Path(_text_env("FAILED_MESSAGES_PATH", "failed_messages.jsonl") or "failed_messages.jsonl"),
         database_url=_text_env("DATABASE_URL"),
+        sources_config_path=Path(
+            _text_env("SOURCES_CONFIG_PATH", str((PROJECT_DIR.parent / "configs" / "sources.yaml")))  # type: ignore[arg-type]
+            or str(PROJECT_DIR.parent / "configs" / "sources.yaml")
+        ),
         vk_token=_text_env("VK_TOKEN"),
         vk_api_version=_text_env("VK_API_VERSION", "5.131") or "5.131",
         vk_group_domains=_csv_env("VK_GROUP_DOMAINS"),
@@ -203,10 +212,16 @@ def validate_consumer_config(config: AppConfig) -> None:
     missing: list[str] = []
     if not config.kafka_bootstrap_servers:
         missing.append("KAFKA_BOOTSTRAP_SERVERS")
-    if not config.kafka_topic:
-        missing.append("KAFKA_TOPIC")
+    if not config.kafka_raw_topic:
+        missing.append("KAFKA_RAW_TOPIC")
+    if not config.kafka_preprocessed_topic:
+        missing.append("KAFKA_PREPROCESSED_TOPIC")
     if not config.kafka_group_id:
         missing.append("KAFKA_GROUP_ID")
+    if not config.database_url:
+        missing.append("DATABASE_URL")
+    if not str(config.sources_config_path).strip():
+        missing.append("SOURCES_CONFIG_PATH")
     _raise_missing("consumer", missing)
 
 

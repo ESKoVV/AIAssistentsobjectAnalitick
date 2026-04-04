@@ -1,9 +1,12 @@
 CREATE OR REPLACE VIEW documents_with_ml AS
 SELECT
     nd.doc_id,
+    nd.raw_message_id,
     nd.source_type,
     nd.source_id,
+    nd.parent_id,
     nd.text,
+    nd.media_type,
     nd.created_at,
     nd.collected_at,
     nd.author_id,
@@ -15,6 +18,28 @@ SELECT
     nd.region_hint,
     nd.geo_lat,
     nd.geo_lon,
+    nd.language,
+    nd.language_confidence,
+    nd.is_supported_language,
+    nd.filter_status,
+    nd.filter_reasons,
+    nd.quality_weight,
+    nd.anomaly_flags,
+    nd.anomaly_confidence,
+    nd.normalized_text,
+    nd.cleanup_flags,
+    nd.text_sha256,
+    nd.duplicate_group_id,
+    nd.near_duplicate_flag,
+    nd.duplicate_cluster_size,
+    nd.canonical_doc_id,
+    nd.region_id,
+    nd.municipality_id,
+    nd.geo_confidence,
+    nd.geo_source,
+    nd.geo_evidence,
+    nd.engagement,
+    nd.metadata_version,
     df.duplicate_of,
     df.cluster_id,
     df.dedup_method,
@@ -26,7 +51,7 @@ SELECT
     mr.status AS ml_status,
     mr.error_message AS ml_error_message,
     mr.processed_at
-FROM normalized_documents AS nd
+FROM normalized_messages AS nd
 LEFT JOIN document_fingerprints AS df
     ON df.doc_id = nd.doc_id
 LEFT JOIN ml_results AS mr

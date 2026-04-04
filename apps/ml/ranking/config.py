@@ -17,7 +17,7 @@ DEFAULT_WEIGHTS = {
 }
 DEFAULT_ACTIVE_PROFILE = "monitoring"
 DEFAULT_CONFIG_PATH = "configs/ranking.yaml"
-DEFAULT_DOCUMENTS_TABLE = "normalized_documents"
+DEFAULT_DOCUMENTS_TABLE = "normalized_messages"
 DEFAULT_SENTIMENTS_TABLE = "document_sentiments"
 DEFAULT_INPUT_TOPIC = "descriptions.updated"
 DEFAULT_OUTPUT_TOPIC = "rankings.updated"

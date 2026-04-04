@@ -33,6 +33,7 @@ from .storage import RankingRepositoryProtocol
 class _WindowClusterView:
     cluster_id: str
     size: int
+    weighted_size: float
     unique_authors: int
     unique_sources: int
     reach_total: int
@@ -56,7 +57,7 @@ class _WindowClusterAggregate:
     timeline: list[RankedTimelinePoint]
 
 
-def normalize_volume(size: int, all_sizes: Sequence[int]) -> float:
+def normalize_volume(size: float, all_sizes: Sequence[float]) -> float:
     return _log_normalize(size, all_sizes)
 
 
@@ -104,7 +105,7 @@ def compute_score_breakdown(
     source_type_count: int,
 ) -> ScoreBreakdown:
     return ScoreBreakdown(
-        volume_score=normalize_volume(cluster.size, all_sizes),
+        volume_score=normalize_volume(_volume_basis(cluster), all_sizes),
         dynamics_score=normalize_dynamics(cluster.growth_rate),
         sentiment_score=normalize_sentiment(sentiment),
         reach_score=normalize_reach(cluster.reach_total, all_reaches),
@@ -215,7 +216,7 @@ def rank_clusters(
             continue
         aggregates.append(aggregate)
 
-    all_sizes = [aggregate.view.size for aggregate in aggregates]
+    all_sizes = [aggregate.view.weighted_size for aggregate in aggregates]
     all_reaches = [aggregate.view.reach_total for aggregate in aggregates]
     total_regions = len(
         {
@@ -462,7 +463,11 @@ def _build_window_aggregate(
         return None
 
     sorted_docs = sorted(window_documents, key=lambda document: (document.created_at, document.doc_id))
-    reach_total = sum(document.reach for document in sorted_docs)
+    weighted_size = sum(_document_weight(document) for document in sorted_docs)
+    weighted_reach_total = sum(
+        float(document.reach) * _document_weight(document)
+        for document in sorted_docs
+    )
     geo_regions = tuple(
         sorted({document.region for document in sorted_docs if document.region}),
     )
@@ -475,9 +480,10 @@ def _build_window_aggregate(
     view = _WindowClusterView(
         cluster_id=cluster.cluster_id,
         size=len(sorted_docs),
+        weighted_size=weighted_size,
         unique_authors=len({document.author_id for document in sorted_docs}),
         unique_sources=len({document.source_type for document in sorted_docs}),
-        reach_total=reach_total,
+        reach_total=int(round(weighted_reach_total)),
         growth_rate=_compute_growth_rate(sorted_docs, now=now),
         geo_regions=geo_regions,
         earliest_doc_at=min(document.created_at for document in sorted_docs),
@@ -554,14 +560,16 @@ def _select_sample_posts(
 
 def _weighted_sentiment(documents: Sequence[RankingDocumentRecord]) -> float:
     weighted_sum = 0.0
-    total_weight = 0
+    total_weight = 0.0
     for document in documents:
         if document.sentiment_score is None:
             continue
-        weight = max(document.reach, 1)
+        weight = max(float(document.reach) * _document_weight(document), _document_weight(document))
+        if weight <= 0.0:
+            continue
         weighted_sum += float(document.sentiment_score) * weight
         total_weight += weight
-    if total_weight == 0:
+    if total_weight <= 0.0:
         return 0.0
     return weighted_sum / total_weight
 
@@ -569,8 +577,16 @@ def _weighted_sentiment(documents: Sequence[RankingDocumentRecord]) -> float:
 def _compute_growth_rate(documents: Sequence[RankingDocumentRecord], *, now: datetime) -> float:
     recent_start = now - timedelta(hours=6)
     previous_start = now - timedelta(hours=12)
-    recent = sum(1 for document in documents if recent_start <= document.created_at <= now)
-    previous = sum(1 for document in documents if previous_start <= document.created_at < recent_start)
+    recent = sum(
+        _document_weight(document)
+        for document in documents
+        if recent_start <= document.created_at <= now
+    )
+    previous = sum(
+        _document_weight(document)
+        for document in documents
+        if previous_start <= document.created_at < recent_start
+    )
     return float(recent) / float(max(previous, 1))
 
 
@@ -582,23 +598,30 @@ def _build_timeline(
 ) -> list[RankedTimelinePoint]:
     window_end = _floor_to_hour(now)
     window_start = window_end - timedelta(hours=hours - 1)
-    buckets: dict[datetime, dict[str, int]] = {
-        window_start + timedelta(hours=index): {"count": 0, "reach": 0}
+    buckets: dict[datetime, dict[str, float]] = {
+        window_start + timedelta(hours=index): {"count": 0.0, "reach": 0.0}
         for index in range(hours)
     }
     for document in documents:
         hour = _floor_to_hour(document.created_at)
         if hour not in buckets:
             continue
-        buckets[hour]["count"] += 1
-        buckets[hour]["reach"] += document.reach
+        weight = _document_weight(document)
+        buckets[hour]["count"] += weight
+        buckets[hour]["reach"] += float(document.reach) * weight
 
     timeline: list[RankedTimelinePoint] = []
-    previous_count = 0
+    previous_count = 0.0
     for hour in sorted(buckets):
-        count = buckets[hour]["count"]
-        reach = buckets[hour]["reach"]
-        growth_rate = float(count) / float(max(previous_count, 1)) if previous_count or count else 0.0
+        weighted_count = buckets[hour]["count"]
+        weighted_reach = buckets[hour]["reach"]
+        count = int(round(weighted_count))
+        reach = int(round(weighted_reach))
+        growth_rate = (
+            float(weighted_count) / float(max(previous_count, 1.0))
+            if previous_count or weighted_count
+            else 0.0
+        )
         timeline.append(
             RankedTimelinePoint(
                 hour=hour,
@@ -607,7 +630,7 @@ def _build_timeline(
                 growth_rate=growth_rate,
             ),
         )
-        previous_count = count
+        previous_count = weighted_count
     return timeline
 
 
@@ -620,11 +643,11 @@ def _preview_text(text: str) -> str:
     return normalized[:200]
 
 
-def _log_normalize(value: int, population: Sequence[int]) -> float:
+def _log_normalize(value: float, population: Sequence[float]) -> float:
     if not population:
         return 0.0
-    normalized_value = math.log1p(max(0, int(value)))
-    max_value = math.log1p(max(max(0, int(item)) for item in population))
+    normalized_value = math.log1p(max(0.0, float(value)))
+    max_value = math.log1p(max(max(0.0, float(item)) for item in population))
     if max_value <= 0.0:
         return 0.0
     return _clamp(normalized_value / max_value)
@@ -632,3 +655,11 @@ def _log_normalize(value: int, population: Sequence[int]) -> float:
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
+
+
+def _document_weight(document: RankingDocumentRecord) -> float:
+    return _clamp(getattr(document, "quality_weight", 1.0))
+
+
+def _volume_basis(cluster: Cluster | _WindowClusterView) -> float:
+    return float(getattr(cluster, "weighted_size", cluster.size))

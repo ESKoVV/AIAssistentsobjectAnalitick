@@ -94,7 +94,7 @@ class HealthSnapshot:
 
 
 class PublicAPIRepository:
-    def __init__(self, dsn: str, *, documents_table: str = "normalized_documents") -> None:
+    def __init__(self, dsn: str, *, documents_table: str = "normalized_messages") -> None:
         self._dsn = dsn
         self._documents_table = documents_table
 

@@ -21,5 +21,9 @@ def send_document(topic: str, document: dict) -> None:
     producer.flush()
 
 
+def send_document_to_preprocessed_topic(document: dict) -> None:
+    send_document(CONFIG.kafka_preprocessed_topic, document)
+
+
 def send_document_to_ml_topic(document: dict) -> None:
     send_document(CONFIG.kafka_ml_topic, document)

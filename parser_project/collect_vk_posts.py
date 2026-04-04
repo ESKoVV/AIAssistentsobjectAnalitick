@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from config import load_config, validate_vk_config
 from kafka_producer import send_document
-from normalizers.vk import normalize_vk_comment, normalize_vk_post
+from normalizers.vk import build_vk_comment_raw_message, build_vk_post_raw_message
 from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
 
 CONFIG = load_config()
@@ -106,7 +106,7 @@ def main():
                     if not text.strip():
                         continue
 
-                    doc = normalize_vk_post(raw_post)
+                    doc = build_vk_post_raw_message(raw_post)
 
                     send_document(CONFIG.kafka_topic, doc.model_dump())
                     save_document_jsonl("documents.jsonl", doc)
@@ -140,7 +140,7 @@ def main():
                             if not comment_text.strip():
                                 continue
 
-                            comment_doc = normalize_vk_comment(raw_comment, raw_post)
+                            comment_doc = build_vk_comment_raw_message(raw_comment, raw_post)
                             send_document(CONFIG.kafka_topic, comment_doc.model_dump())
                             save_document_jsonl("documents.jsonl", comment_doc)
                             total_sent += 1

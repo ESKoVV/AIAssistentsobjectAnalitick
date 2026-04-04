@@ -44,6 +44,8 @@ def build_enriched_document(
         filter_status=FilterStatus.PASS,
         filter_reasons=(),
         quality_weight=1.0,
+        anomaly_flags=(),
+        anomaly_confidence=0.0,
         normalized_text=text,
         token_count=len(text.split()),
         cleanup_flags=("whitespace_normalized",),

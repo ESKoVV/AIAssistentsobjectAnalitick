@@ -14,6 +14,7 @@ def main():
 
     topics_to_create = [
         CONFIG.kafka_raw_topic,
+        CONFIG.kafka_preprocessed_topic,
         CONFIG.kafka_ml_topic,
         CONFIG.kafka_ml_results_topic,
     ]

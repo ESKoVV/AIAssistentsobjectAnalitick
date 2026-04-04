@@ -51,6 +51,7 @@ class RankingDocumentRecord:
     reach: int
     region: str | None
     raw_payload: dict[str, Any]
+    quality_weight: float = 1.0
     sentiment_score: float | None = None
 
 

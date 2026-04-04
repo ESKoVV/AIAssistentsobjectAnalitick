@@ -33,6 +33,8 @@ EXPECTED_FIELDS = {
     "filter_status",
     "filter_reasons",
     "quality_weight",
+    "anomaly_flags",
+    "anomaly_confidence",
     "normalized_text",
     "token_count",
     "cleanup_flags",

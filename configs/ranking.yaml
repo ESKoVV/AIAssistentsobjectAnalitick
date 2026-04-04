@@ -1,5 +1,5 @@
 active_profile: monitoring
-documents_table: normalized_documents
+documents_table: normalized_messages
 sentiments_table: document_sentiments
 input_topic: descriptions.updated
 output_topic: rankings.updated

@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SourceType(str, Enum):
@@ -19,6 +19,30 @@ class MediaType(str, Enum):
     PHOTO = "photo"
     VIDEO = "video"
     LINK = "link"
+
+
+class RawMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_type: SourceType
+    source_id: str
+    author_id: Optional[str] = None
+
+    text: str
+    media_type: Optional[MediaType] = None
+
+    created_at_utc: datetime
+    collected_at: datetime
+
+    raw_payload: dict
+
+    is_official: bool = False
+    reach: int = 0
+    likes: int = 0
+    reposts: int = 0
+    comments_count: int = 0
+
+    parent_id: Optional[str] = None
 
 
 class NormalizedDocument(BaseModel):

@@ -5,9 +5,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 from config import load_config, validate_rss_config
-from id_builders import build_rss_article_doc_id
-from region_extractor import extract_geo, extract_region_hint
-from schema import MediaType, NormalizedDocument, SourceType
+from schema import MediaType, RawMessage, SourceType
 
 CONFIG = load_config()
 
@@ -73,24 +71,21 @@ def _to_raw_payload(entry: dict[str, Any]) -> dict[str, Any]:
     return json.loads(json.dumps(entry, ensure_ascii=False, default=str))
 
 
-def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocument:
+def build_rss_raw_message(feed_url: str, entry: dict[str, Any]) -> RawMessage:
     text = _extract_text(entry)
     if not text.strip():
         raise ValueError("Пустая RSS-запись: отсутствуют title/summary/content")
 
     source_id = _build_source_id(feed_url, entry)
     raw_payload = _to_raw_payload(entry)
-    geo_lat, geo_lon = extract_geo(raw_payload)
-    region_hint = extract_region_hint(text, raw_payload)
 
-    return NormalizedDocument(
-        doc_id=build_rss_article_doc_id(source_id),
+    return RawMessage(
         source_type=SourceType.RSS_ARTICLE,
         source_id=source_id,
         parent_id=None,
         text=text,
         media_type=MediaType.LINK,
-        created_at=_parse_entry_datetime(entry),
+        created_at_utc=_parse_entry_datetime(entry),
         collected_at=datetime.now(timezone.utc),
         author_id=str(entry.get("author") or entry.get("source", {}).get("title") or "rss"),
         is_official=False,
@@ -98,14 +93,11 @@ def normalize_rss_entry(feed_url: str, entry: dict[str, Any]) -> NormalizedDocum
         likes=0,
         reposts=0,
         comments_count=0,
-        region_hint=region_hint,
-        geo_lat=geo_lat,
-        geo_lon=geo_lon,
         raw_payload=raw_payload,
     )
 
 
-def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
+def save_document_jsonl(path: str, doc: RawMessage) -> None:
     with open(path, "a", encoding="utf-8") as f:
         f.write(
             json.dumps(
@@ -155,7 +147,7 @@ def main() -> None:
                         feed_dropped_old += 1
                         continue
 
-                    doc = normalize_rss_entry(feed_url, entry)
+                    doc = build_rss_raw_message(feed_url, entry)
                     from kafka_producer import send_document
 
                     send_document(CONFIG.kafka_topic, doc.model_dump())
@@ -187,3 +179,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+normalize_rss_entry = build_rss_raw_message

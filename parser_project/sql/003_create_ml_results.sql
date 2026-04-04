@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS ml_results (
-    doc_id TEXT PRIMARY KEY REFERENCES normalized_documents (doc_id) ON DELETE CASCADE,
+    doc_id TEXT PRIMARY KEY REFERENCES normalized_messages (doc_id) ON DELETE CASCADE,
     summary TEXT NULL,
     score DOUBLE PRECISION NULL,
     category TEXT NULL,

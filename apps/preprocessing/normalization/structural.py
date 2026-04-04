@@ -181,7 +181,7 @@ def _normalize_rss(
     source_config: Mapping[str, Any],
 ) -> NormalizedDocument:
     source_id = _stringify_id(
-        _pick(raw_payload, "guid", "id", "link", default=_payload_fingerprint(raw_payload)),
+        _pick(raw_payload, "guid", "id", "link", "source_id", default=_payload_fingerprint(raw_payload)),
         fallback=_payload_fingerprint(raw_payload),
     )
     created_at = _resolve_datetime(
@@ -231,7 +231,7 @@ def _normalize_portal(
     source_config: Mapping[str, Any],
 ) -> NormalizedDocument:
     source_id = _stringify_id(
-        _pick(raw_payload, "appeal_id", "request_number", "id", default=_payload_fingerprint(raw_payload)),
+        _pick(raw_payload, "appeal_id", "request_number", "id", "source_id", default=_payload_fingerprint(raw_payload)),
         fallback=_payload_fingerprint(raw_payload),
     )
     created_at = _resolve_datetime(

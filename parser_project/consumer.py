@@ -1,21 +1,36 @@
 import json
-from datetime import datetime, UTC
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
 
 from kafka import KafkaConsumer
 from pydantic import ValidationError
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from apps.ml.embeddings.serde import serialize_document
+from apps.preprocessing.normalization import normalize_document
 from config import load_config, validate_consumer_config
-from db import upsert_document
-from kafka_producer import send_document_to_ml_topic
-from schema import NormalizedDocument
+from db import (
+    fetch_recent_cleaned_documents,
+    update_preprocessing_projection,
+    upsert_normalized_message,
+    upsert_raw_message,
+)
+from kafka_producer import send_document_to_preprocessed_topic
+from preprocessing_pipeline import build_normalization_payload, preprocess_raw_message
+from schema import RawMessage
+from source_registry import load_source_registry, resolve_source_config
 
 CONFIG = load_config()
 
 
 def save_failed_message(raw_message: dict, error: str) -> None:
     CONFIG.failed_messages_path.parent.mkdir(parents=True, exist_ok=True)
-    with CONFIG.failed_messages_path.open("a", encoding="utf-8") as f:
-        f.write(
+    with CONFIG.failed_messages_path.open("a", encoding="utf-8") as handle:
+        handle.write(
             json.dumps(
                 {
                     "failed_at": datetime.now(UTC).isoformat(),
@@ -29,18 +44,47 @@ def save_failed_message(raw_message: dict, error: str) -> None:
         )
 
 
+def process_raw_payload(raw_data: dict, source_registry: dict[str, dict]) -> str | None:
+    raw_message = RawMessage.model_validate(raw_data)
+    source_config = resolve_source_config(source_registry, raw_message.source_type)
+    preview_normalized = normalize_document(
+        build_normalization_payload(raw_message),
+        source_config,
+    )
+    recent_cleaned_documents = fetch_recent_cleaned_documents(
+        exclude_doc_id=preview_normalized.doc_id,
+    )
+    raw_message_id = upsert_raw_message(raw_message)
+    document, projection_updates = preprocess_raw_message(
+        raw_message,
+        source_config,
+        recent_cleaned_documents=recent_cleaned_documents,
+    )
+    if projection_updates:
+        update_preprocessing_projection(projection_updates)
+    upsert_normalized_message(
+        raw_message_id=raw_message_id,
+        document=document,
+    )
+    if document.filter_status.value != "drop":
+        send_document_to_preprocessed_topic(serialize_document(document))
+        return document.doc_id
+    return None
+
+
 def main() -> None:
     validate_consumer_config(CONFIG)
+    source_registry = load_source_registry(CONFIG.sources_config_path)
     consumer = KafkaConsumer(
-        CONFIG.kafka_topic,
+        CONFIG.kafka_raw_topic,
         bootstrap_servers=CONFIG.kafka_bootstrap_servers,
         auto_offset_reset="earliest",
         enable_auto_commit=True,
         group_id=CONFIG.kafka_group_id,
-        value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+        value_deserializer=lambda message: json.loads(message.decode("utf-8")),
     )
 
-    print(f"Слушаю Kafka topic: {CONFIG.kafka_topic}")
+    print(f"Слушаю Kafka topic: {CONFIG.kafka_raw_topic}")
     print("Нажми Ctrl+C, чтобы остановить.")
     print("-" * 80)
 
@@ -48,35 +92,19 @@ def main() -> None:
         for message in consumer:
             raw_data = message.value
             try:
-                document = NormalizedDocument.model_validate(raw_data)
-                upsert_document(document)
-                print(f"✅ Сохранен документ в PostgreSQL: {document.doc_id}")
-
-                ml_payload = {
-                    "doc_id": document.doc_id,
-                    "source_type": document.source_type,
-                    "source_id": document.source_id,
-                    "text": document.text,
-                    "created_at": document.created_at,
-                    "collected_at": document.collected_at,
-                    "author_id": document.author_id,
-                    "is_official": document.is_official,
-                    "reach": document.reach,
-                    "likes": document.likes,
-                    "reposts": document.reposts,
-                    "comments_count": document.comments_count,
-                    "region_hint": document.region_hint,
-                    "geo_lat": document.geo_lat,
-                    "geo_lon": document.geo_lon,
-                    "raw_payload": document.raw_payload,
-                }
-
-                try:
-                    send_document_to_ml_topic(ml_payload)
-                    print(f"✅ Отправлен документ в ML topic {CONFIG.kafka_ml_topic}: {document.doc_id}")
-                except Exception as exc:
-                    print(f"❌ Ошибка отправки в ML topic offset={message.offset}: {exc}")
-                    save_failed_message(raw_data, f"ML topic publish error: {exc}")
+                published_doc_id = process_raw_payload(raw_data, source_registry)
+                if published_doc_id is not None:
+                    print(
+                        "✅ Обработан raw message и опубликован preprocessed document: "
+                        f"{published_doc_id}",
+                    )
+                else:
+                    source_type = raw_data.get("source_type", "unknown")
+                    source_id = raw_data.get("source_id", "unknown")
+                    print(
+                        "✅ Обработан raw message и сохранён audit-only DROP документ: "
+                        f"{source_type}:{source_id}",
+                    )
             except (ValidationError, Exception) as exc:
                 print(f"❌ Ошибка обработки сообщения offset={message.offset}: {exc}")
                 save_failed_message(raw_data, str(exc))

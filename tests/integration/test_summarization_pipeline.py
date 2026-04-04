@@ -92,7 +92,7 @@ def test_consumer_generates_description_publishes_event_and_logs_costs(tmp_path)
         config=SummarizationServiceConfig(
             postgres_dsn=None,
             prompts_path=str(prompt_path),
-            documents_table="normalized_documents",
+            documents_table="normalized_messages",
         ),
     )
     service.initialize()
@@ -101,7 +101,7 @@ def test_consumer_generates_description_publishes_event_and_logs_costs(tmp_path)
         config=SummarizationServiceConfig(
             postgres_dsn=None,
             prompts_path=str(prompt_path),
-            documents_table="normalized_documents",
+            documents_table="normalized_messages",
         ),
         dependencies=ClusterDescriptionConsumerDependencies(service=service, producer=producer),
     )
@@ -138,7 +138,7 @@ def test_service_skips_cached_cluster_and_creates_history_on_regeneration(tmp_pa
     config = SummarizationServiceConfig(
         postgres_dsn=None,
         prompts_path=str(prompt_path),
-        documents_table="normalized_documents",
+        documents_table="normalized_messages",
     )
     service = ClusterDescriptionService(
         repository=repository,
@@ -223,7 +223,7 @@ def test_service_marks_needs_review_after_exhausting_retries_and_records_fallbac
         config=SummarizationServiceConfig(
             postgres_dsn=None,
             prompts_path=str(prompt_path),
-            documents_table="normalized_documents",
+            documents_table="normalized_messages",
         ),
     )
     service.initialize()

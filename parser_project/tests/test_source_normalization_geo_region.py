@@ -1,8 +1,8 @@
-from collect_rss import normalize_rss_entry
-from normalizers.vk import normalize_vk_post
+from collect_rss import build_rss_raw_message
+from normalizers.vk import build_vk_post_raw_message
 
 
-def test_vk_normalization_populates_region_and_geo() -> None:
+def test_vk_raw_message_keeps_source_payload_without_derived_geo_fields() -> None:
     raw_post = {
         "id": 456,
         "owner_id": 123,
@@ -16,14 +16,15 @@ def test_vk_normalization_populates_region_and_geo() -> None:
         "comments": {"count": 0},
     }
 
-    doc = normalize_vk_post(raw_post)
+    doc = build_vk_post_raw_message(raw_post)
 
-    assert doc.region_hint == "Ростовская область"
-    assert doc.geo_lat == 47.2221
-    assert doc.geo_lon == 39.7203
+    assert doc.source_type == "vk_post"
+    assert doc.raw_payload["geo"]["coordinates"] == "47.2221 39.7203"
+    assert not hasattr(doc, "region_hint")
+    assert not hasattr(doc, "geo_lat")
 
 
-def test_rss_normalization_populates_region_and_geo() -> None:
+def test_rss_raw_message_keeps_feed_entry_without_derived_geo_fields() -> None:
     entry = {
         "title": "Ситуация в Краснодаре",
         "summary": "Ожидаются осадки",
@@ -32,8 +33,8 @@ def test_rss_normalization_populates_region_and_geo() -> None:
         "author": "Региональные новости",
     }
 
-    doc = normalize_rss_entry("https://example.com/rss", entry)
+    doc = build_rss_raw_message("https://example.com/rss", entry)
 
-    assert doc.region_hint == "Краснодарский край"
-    assert doc.geo_lat == 45.035
-    assert doc.geo_lon == 38.975
+    assert doc.source_type == "rss_article"
+    assert doc.raw_payload["geo"]["lat"] == "45.035"
+    assert not hasattr(doc, "region_hint")

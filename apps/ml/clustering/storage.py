@@ -268,7 +268,7 @@ class PostgresClusteringRepository:
         dsn: str,
         *,
         embeddings_table: str = "embeddings",
-        documents_table: str = "documents",
+        documents_table: str = "normalized_messages",
     ) -> None:
         self._dsn = dsn
         self._embeddings_table = embeddings_table
