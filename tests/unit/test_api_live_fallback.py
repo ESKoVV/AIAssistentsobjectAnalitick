@@ -2,88 +2,75 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
+from apps.api.public.cache import TopCache
+from apps.api.public.config import APIConfig
+from apps.api.public.errors import ServiceUnavailableError
 from apps.api.public.repository import (
-    LiveSourceRow,
-    _build_live_cluster_id,
-    _build_live_snapshot_payload,
-    _parse_live_cluster_id,
+    HealthSnapshot,
+    SnapshotRecord,
 )
+from apps.api.public.service import TopAPIService
+from apps.api.schemas.top import TopQueryParams
 
-
-def _build_row(
-    *,
-    doc_id: str,
-    created_at: datetime,
-    category: str = "housing",
-    category_label: str = "ЖКХ",
-    region: str | None = "Ростов-на-Дону",
-    source_type: str = "vk_post",
-    author_id: str = "author-1",
-    reach: int = 100,
-    summary: str | None = None,
-) -> LiveSourceRow:
-    return LiveSourceRow(
-        doc_id=doc_id,
-        source_id=doc_id,
-        source_type=source_type,
-        author_id=author_id,
-        text="Во дворе нет горячей воды и жители ждут восстановления подачи.",
-        created_at=created_at,
-        collected_at=created_at,
-        reach=reach,
-        likes=10,
-        reposts=1,
-        comments_count=2,
-        is_official=False,
-        parent_id=None,
-        region=region,
-        raw_payload={},
-        category=category,
-        category_label=category_label,
-        ml_summary=summary,
-        ml_score=0.8,
-        ml_processed_at=created_at + timedelta(minutes=5),
+def _build_service(repository: object) -> TopAPIService:
+    return TopAPIService(
+        repository=repository,
+        cache=TopCache(redis_dsn=None, ttl_seconds=300),
+        config=APIConfig(database_url="postgresql://test:test@localhost:5432/test"),
     )
 
 
-def test_live_cluster_id_round_trip_supports_cyrillic_region() -> None:
-    cluster_id = _build_live_cluster_id("housing", "Ростов-на-Дону")
+def test_get_top_requires_snapshot_and_does_not_fallback() -> None:
+    class StubRepository:
+        def fetch_snapshot(self, *, period_hours: int, as_of=None):
+            del period_hours, as_of
+            return None
 
-    assert _parse_live_cluster_id(cluster_id) == ("housing", "Ростов-на-Дону")
+    service = _build_service(StubRepository())
+
+    with pytest.raises(ServiceUnavailableError) as exc_info:
+        service.get_top(TopQueryParams(period="24h"), use_cache=False)
+
+    assert exc_info.value.error_code == "ranking_unavailable"
 
 
-def test_build_live_snapshot_payload_groups_documents_into_live_items() -> None:
-    now = datetime(2026, 4, 5, 12, 0, tzinfo=UTC)
-    rows = [
-        _build_row(doc_id="doc-1", created_at=now - timedelta(hours=1), author_id="author-1", reach=150),
-        _build_row(doc_id="doc-2", created_at=now - timedelta(hours=2), author_id="author-2", reach=120),
-        _build_row(
-            doc_id="doc-3",
-            created_at=now - timedelta(hours=3),
-            category="roads",
-            category_label="Дороги и транспорт",
-            region="Батайск",
-            source_type="portal_appeal",
-            summary="Жители жалуются на длительные задержки автобусов.",
-        ),
-    ]
+def test_get_health_requires_snapshot_pipeline() -> None:
+    class StubRepository:
+        def fetch_health_snapshot(self, *, freshness_threshold_minutes: int) -> HealthSnapshot:
+            del freshness_threshold_minutes
+            raise RuntimeError("ranking snapshots are not available")
 
-    snapshot, items = _build_live_snapshot_payload(
-        rows,
-        period_hours=24,
-        period_start=now - timedelta(hours=24),
-        period_end=now,
-        category=None,
-        limit=10,
-    )
+    service = _build_service(StubRepository())
 
-    assert snapshot.period_hours == 24
-    assert len(items) == 2
+    with pytest.raises(ServiceUnavailableError) as exc_info:
+        service.get_health()
 
-    top_item = items[0]
-    assert top_item.category == "housing"
-    assert top_item.category_label == "ЖКХ"
-    assert top_item.mention_count == 2
-    assert top_item.unique_authors == 2
-    assert top_item.geo_regions == ["Ростов-на-Дону"]
-    assert len(top_item.sample_posts) >= 1
+    assert exc_info.value.error_code == "ranking_unavailable"
+
+
+def test_get_top_returns_snapshot_data_when_available() -> None:
+    now = datetime.now(UTC)
+
+    class StubRepository:
+        def fetch_snapshot(self, *, period_hours: int, as_of=None):
+            del period_hours, as_of
+            return SnapshotRecord(
+                ranking_id="ranking-1",
+                computed_at=now,
+                period_start=now - timedelta(hours=24),
+                period_end=now,
+                top_n=10,
+                period_hours=24,
+            )
+
+        def fetch_snapshot_items(self, *, ranking_id: str, cluster_ids=None, category=None):
+            del ranking_id, cluster_ids, category
+            return []
+
+    service = _build_service(StubRepository())
+    response, cache_hit = service.get_top(TopQueryParams(period="24h"), use_cache=False)
+
+    assert cache_hit is False
+    assert response.total_clusters == 0

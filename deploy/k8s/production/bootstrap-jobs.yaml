@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-bootstrap
+  namespace: regional-analytics
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: regional-analytics/python-worker:latest
+          command: ["python", "parser_project/bootstrap_production.py"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: replay-raw-messages
+  namespace: regional-analytics
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: replay
+          image: regional-analytics/python-worker:latest
+          command: ["python", "parser_project/replay_raw_messages.py"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets

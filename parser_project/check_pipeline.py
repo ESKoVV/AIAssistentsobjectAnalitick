@@ -12,10 +12,10 @@ from config import load_config, validate_consumer_config, validate_db_config
 
 @dataclass(frozen=True)
 class PipelineStats:
-    raw_total_rows: int
-    total_rows: int
+    row_counts: dict[str, int]
     rows_by_source_type: list[tuple[str, int]]
     latest_documents: list[tuple[str, str, datetime, str]]
+    latest_rankings: list[tuple[str, datetime, int]]
 
 
 def _ok(message: str) -> None:
@@ -70,14 +70,36 @@ def _check_table_exists(conn: psycopg.Connection[Any], table_name: str) -> None:
 
 
 def _collect_db_stats(conn: psycopg.Connection[Any]) -> PipelineStats:
-    step = "Сбор статистики по raw_messages и normalized_messages"
+    step = "Сбор статистики по production pipeline tables"
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM raw_messages;")
-            raw_total_rows = cur.fetchone()[0]
-
-            cur.execute("SELECT COUNT(*) FROM normalized_messages;")
-            total_rows = cur.fetchone()[0]
+            row_counts: dict[str, int] = {}
+            for table_name in (
+                "raw_messages",
+                "normalized_messages",
+                "document_sentiments",
+                "embeddings",
+                "clusters",
+                "cluster_descriptions",
+                "rankings",
+            ):
+                cur.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                          AND table_name = %s
+                    );
+                    """,
+                    (table_name,),
+                )
+                exists = bool(cur.fetchone()[0])
+                if not exists:
+                    row_counts[table_name] = 0
+                    continue
+                cur.execute(f"SELECT COUNT(*) FROM {table_name};")
+                row_counts[table_name] = int(cur.fetchone()[0])
 
             cur.execute(
                 """
@@ -99,12 +121,24 @@ def _collect_db_stats(conn: psycopg.Connection[Any]) -> PipelineStats:
             )
             latest_documents = cur.fetchall()
 
+            latest_rankings: list[tuple[str, datetime, int]] = []
+            if row_counts.get("rankings", 0) > 0:
+                cur.execute(
+                    """
+                    SELECT ranking_id, computed_at, period_hours
+                    FROM rankings
+                    ORDER BY computed_at DESC
+                    LIMIT 5;
+                    """
+                )
+                latest_rankings = cur.fetchall()
+
         _ok("Статистика по таблице собрана")
         return PipelineStats(
-            raw_total_rows=raw_total_rows,
-            total_rows=total_rows,
+            row_counts=row_counts,
             rows_by_source_type=rows_by_source_type,
             latest_documents=latest_documents,
+            latest_rankings=latest_rankings,
         )
     except Exception as error:  # noqa: BLE001
         _fail(step, error)
@@ -135,8 +169,17 @@ def _check_kafka(bootstrap_servers: str, topic_name: str) -> None:
 
 def _print_report(stats: PipelineStats) -> None:
     print("\n================ Pipeline health report ================")
-    _info(f"Всего записей в raw_messages: {stats.raw_total_rows}")
-    _info(f"Всего записей в normalized_messages: {stats.total_rows}")
+    print("\n[INFO] Row counts by table:")
+    for table_name in (
+        "raw_messages",
+        "normalized_messages",
+        "document_sentiments",
+        "embeddings",
+        "clusters",
+        "cluster_descriptions",
+        "rankings",
+    ):
+        _info(f"{table_name}: {stats.row_counts.get(table_name, 0)}")
 
     print("\n[INFO] Записи по source_type:")
     if not stats.rows_by_source_type:
@@ -152,6 +195,13 @@ def _print_report(stats: PipelineStats) -> None:
         for doc_id, source_type, created_at, text_preview in stats.latest_documents:
             preview = (text_preview or "").replace("\n", " ").strip()
             print(f"  - {created_at.isoformat()} | {source_type} | {doc_id} | {preview}")
+
+    print("\n[INFO] Последние ranking snapshots:")
+    if not stats.latest_rankings:
+        print("  - ranking snapshots пока нет")
+    else:
+        for ranking_id, computed_at, period_hours in stats.latest_rankings:
+            print(f"  - {computed_at.isoformat()} | period={period_hours}h | {ranking_id}")
 
     print("========================================================")
 
@@ -175,6 +225,9 @@ def main() -> None:
 
     _check_kafka(config.kafka_bootstrap_servers, config.kafka_raw_topic)
     _check_kafka(config.kafka_bootstrap_servers, config.kafka_preprocessed_topic)
+    _check_kafka(config.kafka_bootstrap_servers, config.kafka_clusters_updated_topic)
+    _check_kafka(config.kafka_bootstrap_servers, config.kafka_descriptions_updated_topic)
+    _check_kafka(config.kafka_bootstrap_servers, config.kafka_rankings_updated_topic)
     _print_report(stats)
 
 

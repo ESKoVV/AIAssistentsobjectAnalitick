@@ -1,0 +1,344 @@
+name: regional-analytics
+
+x-common-env: &common-env
+  DATABASE_URL: ${DATABASE_URL}
+  KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+  KAFKA_RAW_TOPIC: ${KAFKA_RAW_TOPIC:-raw.documents}
+  KAFKA_RAW_DLQ_TOPIC: ${KAFKA_RAW_DLQ_TOPIC:-raw.documents.dlq}
+  KAFKA_PREPROCESSED_TOPIC: ${KAFKA_PREPROCESSED_TOPIC:-preprocessed.documents}
+  KAFKA_CLUSTERS_UPDATED_TOPIC: ${KAFKA_CLUSTERS_UPDATED_TOPIC:-clusters.updated}
+  KAFKA_DESCRIPTIONS_UPDATED_TOPIC: ${KAFKA_DESCRIPTIONS_UPDATED_TOPIC:-descriptions.updated}
+  KAFKA_RANKINGS_UPDATED_TOPIC: ${KAFKA_RANKINGS_UPDATED_TOPIC:-rankings.updated}
+  KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-documents-consumer-group}
+  KAFKA_PREPROCESSING_GROUP_ID: ${KAFKA_PREPROCESSING_GROUP_ID:-documents-consumer-group-preprocessing}
+  SOURCES_CONFIG_PATH: /app/configs/sources.yaml
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-orchestration-env: &orchestration-env
+  EMBEDDINGS_POSTGRES_DSN: ${DATABASE_URL}
+  EMBEDDINGS_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+  EMBEDDINGS_MODEL_NAME: ${EMBEDDINGS_MODEL_NAME:-intfloat/multilingual-e5-large}
+  EMBEDDINGS_MODEL_VERSION: ${EMBEDDINGS_MODEL_VERSION:-intfloat-multilingual-e5-large-2026-04-05}
+  EMBEDDINGS_DEVICE: ${EMBEDDINGS_DEVICE:-cpu}
+  EMBEDDINGS_INPUT_TOPIC: ${KAFKA_PREPROCESSED_TOPIC:-preprocessed.documents}
+  EMBEDDINGS_OUTPUT_TOPIC: ${EMBEDDINGS_OUTPUT_TOPIC:-}
+  SENTIMENT_POSTGRES_DSN: ${DATABASE_URL}
+  SENTIMENT_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+  SENTIMENT_MODEL_NAME: ${SENTIMENT_MODEL_NAME:-blanchefort/rubert-base-cased-sentiment}
+  SENTIMENT_MODEL_VERSION: ${SENTIMENT_MODEL_VERSION:-rubert-base-cased-sentiment-2026-04-05}
+  SENTIMENT_DEVICE: ${SENTIMENT_DEVICE:-cpu}
+  SUMMARIZATION_POSTGRES_DSN: ${DATABASE_URL}
+  SUMMARIZATION_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+  SUMMARIZATION_DOCUMENTS_TABLE: normalized_messages
+  SUMMARIZATION_EMBEDDINGS_TABLE: embeddings
+  SUMMARIZATION_INPUT_TOPIC: ${KAFKA_CLUSTERS_UPDATED_TOPIC:-clusters.updated}
+  SUMMARIZATION_OUTPUT_TOPIC: ${KAFKA_DESCRIPTIONS_UPDATED_TOPIC:-descriptions.updated}
+  SUMMARIZATION_PROMPTS_PATH: /app/configs/prompts/summarization.md
+  SUMMARIZATION_LLM_BASE_URL: ${SUMMARIZATION_LLM_BASE_URL:-http://vllm:8000}
+  SUMMARIZATION_LLM_MODEL_NAME: ${SUMMARIZATION_LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
+  SUMMARIZATION_LLM_API_KEY: ${SUMMARIZATION_LLM_API_KEY:-}
+  RANKING_POSTGRES_DSN: ${DATABASE_URL}
+  RANKING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+  RANKING_INPUT_TOPIC: ${KAFKA_DESCRIPTIONS_UPDATED_TOPIC:-descriptions.updated}
+  RANKING_OUTPUT_TOPIC: ${KAFKA_RANKINGS_UPDATED_TOPIC:-rankings.updated}
+  CLUSTERING_POSTGRES_DSN: ${DATABASE_URL}
+  CLUSTERING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+  CLUSTERING_UPDATED_TOPIC: ${KAFKA_CLUSTERS_UPDATED_TOPIC:-clusters.updated}
+  CLUSTERING_INCREMENTAL_INTERVAL_SECONDS: ${CLUSTERING_INCREMENTAL_INTERVAL_SECONDS:-300}
+  CLUSTERING_FULL_INTERVAL_SECONDS: ${CLUSTERING_FULL_INTERVAL_SECONDS:-21600}
+
+services:
+  kafka:
+    image: bitnami/kafka:3.7.0
+    ports:
+      - "${KAFKA_EXTERNAL_PORT:-9092}:9092"
+    environment:
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_KRAFT_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    volumes:
+      - kafka_data:/bitnami/kafka
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  db-backup:
+    image: postgres:18
+    profiles: ["ops"]
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      pg_dump --format=custom
+      --file /backup/${DB_BACKUP_FILE:-hack_db-production.dump}
+      "${DATABASE_URL}"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    volumes:
+      - db_backups:/backup
+
+  bootstrap:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    profiles: ["bootstrap"]
+    command: python parser_project/bootstrap_production.py
+    environment:
+      <<: [*common-env, *orchestration-env]
+    restart: "no"
+
+  create-topics:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    profiles: ["bootstrap"]
+    command: python parser_project/create_topic.py
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+
+  replay-raw-messages:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    profiles: ["bootstrap"]
+    command: python parser_project/replay_raw_messages.py
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+
+  consumer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python parser_project/consumer.py
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  preprocessing-consumer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python parser_project/preprocessing_consumer.py
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  vk-collector:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python parser_project/collect_vk_posts.py
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      VK_TOKEN: ${VK_TOKEN:-}
+      VK_GROUP_DOMAINS: ${VK_GROUP_DOMAINS:-}
+      VK_POSTS_PER_GROUP: ${VK_POSTS_PER_GROUP:-100}
+      VK_PAGE_SIZE: ${VK_PAGE_SIZE:-20}
+      DAYS_BACK: ${DAYS_BACK:-7}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  rss-collector:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python parser_project/collect_rss.py
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RSS_FEEDS: ${RSS_FEEDS:-}
+      DAYS_BACK: ${DAYS_BACK:-7}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  sentiment-consumer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python -m apps.orchestration.runtime.run_sentiment_consumer
+    environment:
+      <<: [*common-env, *orchestration-env]
+      SENTIMENT_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  embedding-consumer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python -m apps.orchestration.runtime.run_embedding_consumer
+    environment:
+      <<: [*common-env, *orchestration-env]
+      EMBEDDINGS_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  clustering-full:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python -m apps.orchestration.runtime.run_clustering_full_loop
+    environment:
+      <<: [*common-env, *orchestration-env]
+      CLUSTERING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  clustering-incremental:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python -m apps.orchestration.runtime.run_clustering_incremental_loop
+    environment:
+      <<: [*common-env, *orchestration-env]
+      CLUSTERING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  vllm:
+    image: vllm/vllm-openai:v0.5.5
+    profiles: ["llm"]
+    command:
+      - --model
+      - ${SUMMARIZATION_LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    ports:
+      - "${VLLM_PORT:-8001}:8000"
+    shm_size: "2gb"
+
+  summarization-consumer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python -m apps.orchestration.runtime.run_summarization_consumer
+    environment:
+      <<: [*common-env, *orchestration-env]
+      SUMMARIZATION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SUMMARIZATION_LLM_BASE_URL: ${SUMMARIZATION_LLM_BASE_URL:-http://vllm:8000}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ranking-consumer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-worker.Dockerfile
+    command: python -m apps.orchestration.runtime.run_ranking_consumer
+    environment:
+      <<: [*common-env, *orchestration-env]
+      RANKING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api.Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      API_DATABASE_URL: ${DATABASE_URL}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_TOP_CONFIG_PATH: configs/api_top.yaml
+      API_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      API_RANKINGS_UPDATED_TOPIC: ${KAFKA_RANKINGS_UPDATED_TOPIC:-rankings.updated}
+      API_AUTH_DISABLED: ${API_AUTH_DISABLED:-true}
+      API_JWT_ISSUER: ${API_JWT_ISSUER:-}
+      API_JWT_AUDIENCE: ${API_JWT_AUDIENCE:-}
+      API_JWKS_URL: ${API_JWKS_URL:-}
+      API_CORS_ALLOW_ORIGINS: ${API_CORS_ALLOW_ORIGINS:-http://localhost:3000,http://localhost:8081}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/ui.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_USE_MOCKS: ${VITE_USE_MOCKS:-false}
+        VITE_API_TOKEN: ${VITE_API_TOKEN:-}
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "${UI_PORT:-8081}:80"
+    restart: unless-stopped
+
+  db-metrics-exporter:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api.Dockerfile
+    command: python -m apps.ops.db_metrics_exporter
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      OPS_METRICS_HOST: 0.0.0.0
+      OPS_METRICS_PORT: 9108
+    ports:
+      - "${METRICS_PORT:-9108}:9108"
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  db_backups:

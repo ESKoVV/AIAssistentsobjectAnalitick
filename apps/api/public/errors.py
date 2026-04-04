@@ -29,6 +29,11 @@ class SemanticValidationError(APIException):
         super().__init__(status_code=422, error_code=error_code, message=message)
 
 
+class ServiceUnavailableError(APIException):
+    def __init__(self, *, error_code: str, message: str) -> None:
+        super().__init__(status_code=503, error_code=error_code, message=message)
+
+
 class StaleDataError(APIException):
     def __init__(self, message: str = "Данные рейтинга устарели") -> None:
         super().__init__(status_code=503, error_code="stale_ranking", message=message)

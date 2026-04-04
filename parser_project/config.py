@@ -26,8 +26,9 @@ class AppConfig:
     kafka_raw_topic: str
     kafka_raw_dlq_topic: str
     kafka_preprocessed_topic: str
-    kafka_ml_topic: str
-    kafka_ml_results_topic: str
+    kafka_clusters_updated_topic: str
+    kafka_descriptions_updated_topic: str
+    kafka_rankings_updated_topic: str
     kafka_group_id: str
     kafka_preprocessing_group_id: str
     failed_messages_path: Path
@@ -156,8 +157,15 @@ def load_config() -> AppConfig:
         kafka_preprocessed_topic=(
             _text_env("KAFKA_PREPROCESSED_TOPIC", "preprocessed.documents") or "preprocessed.documents"
         ),
-        kafka_ml_topic=_text_env("KAFKA_ML_TOPIC", "ml.documents") or "ml.documents",
-        kafka_ml_results_topic=_text_env("KAFKA_ML_RESULTS_TOPIC", "ml.results") or "ml.results",
+        kafka_clusters_updated_topic=(
+            _text_env("KAFKA_CLUSTERS_UPDATED_TOPIC", "clusters.updated") or "clusters.updated"
+        ),
+        kafka_descriptions_updated_topic=(
+            _text_env("KAFKA_DESCRIPTIONS_UPDATED_TOPIC", "descriptions.updated") or "descriptions.updated"
+        ),
+        kafka_rankings_updated_topic=(
+            _text_env("KAFKA_RANKINGS_UPDATED_TOPIC", "rankings.updated") or "rankings.updated"
+        ),
         kafka_group_id=_text_env("KAFKA_GROUP_ID", "documents-consumer-group") or "documents-consumer-group",
         kafka_preprocessing_group_id=(
             _text_env(

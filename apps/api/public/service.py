@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,7 +32,7 @@ from apps.api.schemas.top import (
 
 from .cache import TopCache
 from .config import APIConfig, UrgencyConfig
-from .errors import NotFoundError, SemanticValidationError, StaleDataError
+from .errors import NotFoundError, SemanticValidationError, ServiceUnavailableError, StaleDataError
 from .export import export_csv, export_xlsx
 from .repository import PublicAPIRepository, SnapshotItemRecord, SnapshotRecord
 
@@ -92,28 +91,18 @@ class TopAPIService:
             as_of=params.as_of,
         )
         if snapshot is None:
-            snapshot, filtered = self._repository.fetch_live_snapshot(
-                period_hours=_period_to_hours(params.period),
-                as_of=params.as_of,
-                category=params.category,
-                limit=params.limit,
+            raise ServiceUnavailableError(
+                error_code="ranking_unavailable",
+                message="Снимок рейтинга недоступен",
             )
-            filtered = [
-                item
-                for item in filtered
-                if _matches_top_filters(item, region=params.region, source=params.source)
-            ]
-        else:
-            if params.as_of is None:
-                self._ensure_fresh(snapshot)
-            items = self._repository.fetch_snapshot_items(ranking_id=snapshot.ranking_id, category=params.category)
-            filtered = [
-                item
-                for item in items
-                if _matches_top_filters(item, region=params.region, source=params.source)
-            ]
-        if params.as_of is None and not snapshot.ranking_id.startswith("live:"):
+        if params.as_of is None:
             self._ensure_fresh(snapshot)
+        items = self._repository.fetch_snapshot_items(ranking_id=snapshot.ranking_id, category=params.category)
+        filtered = [
+            item
+            for item in items
+            if _matches_top_filters(item, region=params.region, source=params.source)
+        ]
         total_clusters = len(filtered)
         top_items = [
             self._to_top_item(
@@ -138,8 +127,6 @@ class TopAPIService:
 
     def get_cluster_detail(self, cluster_id: str) -> ClusterDetailResponse:
         snapshot_and_item = self._repository.fetch_latest_snapshot_item_for_cluster(cluster_id=cluster_id)
-        if snapshot_and_item is None:
-            snapshot_and_item = self._repository.fetch_live_cluster_detail(cluster_id=cluster_id)
         if snapshot_and_item is None:
             raise NotFoundError(
                 error_code="cluster_not_found",
@@ -202,26 +189,17 @@ class TopAPIService:
     ) -> ClusterDocumentsResponse:
         snapshot_and_item = self._repository.fetch_latest_snapshot_item_for_cluster(cluster_id=cluster_id)
         if snapshot_and_item is None:
-            documents, total = self._repository.fetch_live_cluster_documents(
-                cluster_id=cluster_id,
-                page=params.page,
-                page_size=params.page_size,
-                source_type=params.source_type,
-                region=params.region,
+            raise NotFoundError(
+                error_code="cluster_not_found",
+                message=f"Кластер с ID {cluster_id} не найден",
             )
-            if not documents and total == 0:
-                raise NotFoundError(
-                    error_code="cluster_not_found",
-                    message=f"Кластер с ID {cluster_id} не найден",
-                )
-        else:
-            documents, total = self._repository.fetch_cluster_documents(
-                cluster_id=cluster_id,
-                page=params.page,
-                page_size=params.page_size,
-                source_type=params.source_type,
-                region=params.region,
-            )
+        documents, total = self._repository.fetch_cluster_documents(
+            cluster_id=cluster_id,
+            page=params.page,
+            page_size=params.page_size,
+            source_type=params.source_type,
+            region=params.region,
+        )
         items = [
             ClusterDocument(
                 doc_id=document.doc_id,
@@ -255,14 +233,11 @@ class TopAPIService:
     def get_cluster_timeline(self, cluster_id: str) -> TimelineResponse:
         snapshot_and_item = self._repository.fetch_latest_snapshot_item_for_cluster(cluster_id=cluster_id)
         if snapshot_and_item is None:
-            timeline = self._repository.fetch_live_cluster_timeline(cluster_id=cluster_id, now=datetime.now(UTC))
-            if not timeline:
-                raise NotFoundError(
-                    error_code="cluster_not_found",
-                    message=f"Кластер с ID {cluster_id} не найден",
-                )
-        else:
-            timeline = self._repository.fetch_cluster_timeline(cluster_id=cluster_id, now=datetime.now(UTC))
+            raise NotFoundError(
+                error_code="cluster_not_found",
+                message=f"Кластер с ID {cluster_id} не найден",
+            )
+        timeline = self._repository.fetch_cluster_timeline(cluster_id=cluster_id, now=datetime.now(UTC))
         return TimelineResponse(
             cluster_id=cluster_id,
             points=[
@@ -288,7 +263,12 @@ class TopAPIService:
             period_hours=24,
         )
         if not snapshots:
-            return self._build_live_history(params)
+            return HistoryResponse(
+                from_dt=params.from_dt,
+                to_dt=params.to_dt,
+                granularity=params.granularity,
+                buckets=[],
+            )
 
         selected_by_bucket: dict[datetime, SnapshotRecord] = {}
         bucket_delta = _granularity_to_delta(params.granularity)
@@ -331,10 +311,11 @@ class TopAPIService:
             health = self._repository.fetch_health_snapshot(
                 freshness_threshold_minutes=self._config.freshness_threshold_minutes,
             )
-        except RuntimeError:
-            health = self._repository.fetch_live_health_snapshot(
-                freshness_threshold_minutes=self._config.freshness_threshold_minutes,
-            )
+        except RuntimeError as error:
+            raise ServiceUnavailableError(
+                error_code="ranking_unavailable",
+                message="Снимки рейтинга недоступны",
+            ) from error
         if health.ranking_age_minutes <= self._config.freshness_threshold_minutes:
             status = "ok"
         elif health.ranking_age_minutes <= self._config.freshness_threshold_minutes * 2:
@@ -443,43 +424,6 @@ class TopAPIService:
         age_minutes = (datetime.now(timezone.utc) - snapshot.computed_at).total_seconds() / 60
         if age_minutes > self._config.freshness_threshold_minutes:
             raise StaleDataError()
-
-    def _build_live_history(self, params: HistoryQueryParams) -> HistoryResponse:
-        bucket_delta = _granularity_to_delta(params.granularity)
-        cursor = _bucket_start(params.from_dt, params.granularity)
-        buckets: list[HistoryBucket] = []
-        while cursor < params.to_dt:
-            bucket_end = min(cursor + bucket_delta, params.to_dt)
-            snapshot, items = self._repository.fetch_live_snapshot(
-                period_hours=24,
-                as_of=bucket_end,
-                limit=10,
-            )
-            if items:
-                buckets.append(
-                    HistoryBucket(
-                        bucket_start=cursor,
-                        bucket_end=bucket_end,
-                        computed_at=snapshot.computed_at,
-                        items=[
-                            self._to_top_item(
-                                item,
-                                rank=index,
-                                period_start=snapshot.period_start,
-                                period_end=snapshot.period_end,
-                                computed_at=snapshot.computed_at,
-                            )
-                            for index, item in enumerate(items[: snapshot.top_n], start=1)
-                        ],
-                    ),
-                )
-            cursor = bucket_end
-        return HistoryResponse(
-            from_dt=params.from_dt,
-            to_dt=params.to_dt,
-            granularity=params.granularity,
-            buckets=buckets,
-        )
 
 
 def _matches_top_filters(

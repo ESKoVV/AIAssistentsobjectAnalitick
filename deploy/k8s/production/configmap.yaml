@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: regional-analytics-config
+  namespace: regional-analytics
+data:
+  KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
+  KAFKA_RAW_TOPIC: raw.documents
+  KAFKA_RAW_DLQ_TOPIC: raw.documents.dlq
+  KAFKA_PREPROCESSED_TOPIC: preprocessed.documents
+  KAFKA_CLUSTERS_UPDATED_TOPIC: clusters.updated
+  KAFKA_DESCRIPTIONS_UPDATED_TOPIC: descriptions.updated
+  KAFKA_RANKINGS_UPDATED_TOPIC: rankings.updated
+  SOURCES_CONFIG_PATH: /app/configs/sources.yaml
+  EMBEDDINGS_MODEL_NAME: intfloat/multilingual-e5-large
+  EMBEDDINGS_MODEL_VERSION: intfloat-multilingual-e5-large-2026-04-05
+  EMBEDDINGS_DEVICE: cpu
+  EMBEDDINGS_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
+  EMBEDDINGS_INPUT_TOPIC: preprocessed.documents
+  EMBEDDINGS_OUTPUT_TOPIC: ""
+  CLUSTERING_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
+  SUMMARIZATION_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
+  SUMMARIZATION_DOCUMENTS_TABLE: normalized_messages
+  SUMMARIZATION_PROMPTS_PATH: /app/configs/prompts/summarization.md
+  SUMMARIZATION_LLM_BASE_URL: http://vllm.regional-analytics.svc.cluster.local:8000
+  SUMMARIZATION_LLM_MODEL_NAME: Qwen/Qwen2.5-7B-Instruct
+  RANKING_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
+  SENTIMENT_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
+  SENTIMENT_MODEL_NAME: blanchefort/rubert-base-cased-sentiment
+  SENTIMENT_MODEL_VERSION: rubert-base-cased-sentiment-2026-04-05
+  API_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
+  API_RANKINGS_UPDATED_TOPIC: rankings.updated
+  API_TOP_CONFIG_PATH: /app/configs/api_top.yaml
+  API_AUTH_DISABLED: "false"
+  API_CORS_ALLOW_ORIGINS: https://analytics.example.internal
+  UI_API_BASE_URL: https://analytics.example.internal/api

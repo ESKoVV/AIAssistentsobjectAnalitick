@@ -1,4 +1,9 @@
 from .config import SummarizationServiceConfig
+from .http_client import (
+    OpenAICompatibleLLMClient,
+    OpenAICompatibleLLMClientConfig,
+    build_llm_client_from_env,
+)
 from .parsing import parse_response
 from .prompting import PromptSpec, hash_prompt_spec, load_prompt_spec, render_user_prompt
 from .schema import (
@@ -49,6 +54,8 @@ __all__ = [
     "LLMError",
     "LLMResponse",
     "LLMUsage",
+    "OpenAICompatibleLLMClient",
+    "OpenAICompatibleLLMClientConfig",
     "PostgresSummarizationRepository",
     "PromptSpec",
     "RateLimitError",
@@ -69,4 +76,5 @@ __all__ = [
     "should_regenerate",
     "truncate_prompt_text",
     "validate_description",
+    "build_llm_client_from_env",
 ]

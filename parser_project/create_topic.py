@@ -70,8 +70,9 @@ def main() -> None:
         CONFIG.kafka_raw_topic,
         CONFIG.kafka_raw_dlq_topic,
         CONFIG.kafka_preprocessed_topic,
-        CONFIG.kafka_ml_topic,
-        CONFIG.kafka_ml_results_topic,
+        CONFIG.kafka_clusters_updated_topic,
+        CONFIG.kafka_descriptions_updated_topic,
+        CONFIG.kafka_rankings_updated_topic,
     ]
     unique_topics = list(dict.fromkeys(topics_to_create))
 

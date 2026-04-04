@@ -67,11 +67,12 @@ class EmbeddingConsumer:
         documents = [deserialize_enriched_document(_coerce_payload(message.value)) for message in messages]
         processed_batch = self._service.process_batch(documents)
 
-        for document in processed_batch.documents:
-            await self._producer.publish(
-                self._config.output_topic,
-                serialize_document(document),
-            )
+        if self._config.output_topic.strip():
+            for document in processed_batch.documents:
+                await self._producer.publish(
+                    self._config.output_topic,
+                    serialize_document(document),
+                )
 
         for message in messages:
             await message.commit()

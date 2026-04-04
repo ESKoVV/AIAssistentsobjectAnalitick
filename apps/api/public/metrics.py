@@ -32,16 +32,32 @@ class MetricsRegistry:
                     "# HELP api_requests_total Total API requests recorded.",
                     "# TYPE api_requests_total counter",
                     "api_requests_total 0",
+                    "# HELP api_requests_by_status_total Total API requests by status class.",
+                    "# TYPE api_requests_by_status_total counter",
+                    'api_requests_by_status_total{status_class="2xx"} 0',
+                    'api_requests_by_status_total{status_class="4xx"} 0',
+                    'api_requests_by_status_total{status_class="5xx"} 0',
                 ],
             )
 
         response_times = [event.response_time_ms for event in self._events]
         cache_hits = sum(1 for event in self._events if event.cache_hit)
+        status_counts = {"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0}
+        for event in self._events:
+            status_class = f"{int(event.status_code) // 100}xx"
+            if status_class in status_counts:
+                status_counts[status_class] += 1
         p99 = _percentile(response_times, 0.99)
         lines = [
             "# HELP api_requests_total Total API requests recorded.",
             "# TYPE api_requests_total counter",
             f"api_requests_total {len(self._events)}",
+            "# HELP api_requests_by_status_total Total API requests by status class.",
+            "# TYPE api_requests_by_status_total counter",
+            *[
+                f'api_requests_by_status_total{{status_class="{status_class}"}} {count}'
+                for status_class, count in status_counts.items()
+            ],
             "# HELP api_response_time_p99_ms Rolling p99 response time in milliseconds.",
             "# TYPE api_response_time_p99_ms gauge",
             f"api_response_time_p99_ms {p99:.2f}",

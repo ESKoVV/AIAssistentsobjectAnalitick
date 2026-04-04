@@ -45,27 +45,6 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
 
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    ports:
-      - "5432:5432"
-    env_file:
-      - .env
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-hack_db}
-      POSTGRES_USER: ${POSTGRES_USER:-hack_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hack_pass}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./sql:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hack_user} -d ${POSTGRES_DB:-hack_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-
   consumer:
     build:
       context: .
@@ -76,28 +55,22 @@ services:
       - .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      DATABASE_URL: postgresql://${POSTGRES_USER:-hack_user}:${POSTGRES_PASSWORD:-hack_pass}@postgres:5432/${POSTGRES_DB:-hack_db}
     depends_on:
       kafka:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
 
-  ml-consumer:
+  preprocessing-consumer:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python ml_consumer.py
+    command: python preprocessing_consumer.py
     restart: unless-stopped
     env_file:
       - .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      DATABASE_URL: postgresql://${POSTGRES_USER:-hack_user}:${POSTGRES_PASSWORD:-hack_pass}@postgres:5432/${POSTGRES_DB:-hack_db}
     depends_on:
       kafka:
-        condition: service_healthy
-      postgres:
         condition: service_healthy
 
   vk-collector:
@@ -125,6 +98,3 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-
-volumes:
-  postgres_data:

@@ -14,30 +14,38 @@ REQUIRED_MIGRATIONS = (
     "003_create_ml_results.sql",
     "004_create_documents_with_ml_view.sql",
     "007_rebuild_message_pipeline_contract.sql",
+    "008_enable_extensions_and_create_document_sentiments.sql",
 )
 
-
-with psycopg.connect(CONFIG.database_url) as conn:
-    with conn.cursor() as cur:
-        sql_files = sorted(SQL_DIR.glob("*.sql"))
-        sql_names = {sql_file.name for sql_file in sql_files}
-        has_normalized_migration = (
-            "001_create_normalized_messages.sql" in sql_names
-            or "001_create_normalized_documents.sql" in sql_names
-        )
-        if not has_normalized_migration:
-            raise FileNotFoundError(
-                "Отсутствует обязательная SQL-миграция для normalized_*: "
-                "ожидается 001_create_normalized_messages.sql "
-                "или 001_create_normalized_documents.sql",
+def apply_sql_schema(*, database_url: str) -> None:
+    with psycopg.connect(database_url) as conn:
+        with conn.cursor() as cur:
+            sql_files = sorted(SQL_DIR.glob("*.sql"))
+            sql_names = {sql_file.name for sql_file in sql_files}
+            has_normalized_migration = (
+                "001_create_normalized_messages.sql" in sql_names
+                or "001_create_normalized_documents.sql" in sql_names
             )
-        missing = [name for name in REQUIRED_MIGRATIONS if name not in sql_names]
-        if missing:
-            missing_list = ", ".join(missing)
-            raise FileNotFoundError(f"Отсутствуют обязательные SQL-миграции: {missing_list}")
+            if not has_normalized_migration:
+                raise FileNotFoundError(
+                    "Отсутствует обязательная SQL-миграция для normalized_*: "
+                    "ожидается 001_create_normalized_messages.sql "
+                    "или 001_create_normalized_documents.sql",
+                )
+            missing = [name for name in REQUIRED_MIGRATIONS if name not in sql_names]
+            if missing:
+                missing_list = ", ".join(missing)
+                raise FileNotFoundError(f"Отсутствуют обязательные SQL-миграции: {missing_list}")
 
-        for sql_file in sql_files:
-            cur.execute(sql_file.read_text(encoding="utf-8"))
-    conn.commit()
+            for sql_file in sql_files:
+                cur.execute(sql_file.read_text(encoding="utf-8"))
+        conn.commit()
 
-print("✅ SQL-схема применена: parser_project/sql/*.sql")
+
+def main() -> None:
+    apply_sql_schema(database_url=CONFIG.database_url)
+    print("✅ SQL-схема применена: parser_project/sql/*.sql")
+
+
+if __name__ == "__main__":
+    main()

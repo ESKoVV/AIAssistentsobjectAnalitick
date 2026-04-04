@@ -16,8 +16,9 @@ logger = logging.getLogger("collect_max_messages")
 class MaxClient(Protocol):
     """Интерфейс клиента MAX.
 
-    TODO: при подключении реального API вынести контракт в отдельный модуль и
-    добавить реализацию с auth/retry/rate-limit.
+    Источник MAX остаётся вне первого production-cut; при отдельной фазе
+    расширения этот контракт можно вынести в dedicated модуль и добавить
+    auth/retry/rate-limit реализацию.
     """
 
     def get_channels(self) -> list[dict[str, Any]]:
@@ -98,7 +99,7 @@ class MockMaxClient:
         return comments
 
 
-# TODO: подключить здесь реальный MAX HTTP/SDK клиент и оставить Mock как fallback.
+# MAX intentionally stays outside the first production scope; replace this mock only in a dedicated source-expansion phase.
 # class RealMaxClient(MaxClient):
 #     ...
 
@@ -242,7 +243,7 @@ def main() -> None:
     logger.info("Kafka topic=%s", CONFIG.kafka_topic)
     logger.info("Mock data path=%s", CONFIG.max_mock_data_path)
 
-    # TODO: заменить фабрику клиента на переключение mock/real через env-флаг.
+    # MAX stays mock-only until the project explicitly adds a supported production integration.
     client: MaxClient = MockMaxClient(CONFIG.max_mock_data_path)
 
     total = process_max_messages(client, CONFIG.kafka_topic)

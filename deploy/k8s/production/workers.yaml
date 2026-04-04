@@ -1,0 +1,283 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: raw-consumer
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: raw-consumer
+  template:
+    metadata:
+      labels:
+        app: raw-consumer
+    spec:
+      containers:
+        - name: raw-consumer
+          image: regional-analytics/python-worker:latest
+          command: ["python", "parser_project/consumer.py"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preprocessing-consumer
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: preprocessing-consumer
+  template:
+    metadata:
+      labels:
+        app: preprocessing-consumer
+    spec:
+      containers:
+        - name: preprocessing-consumer
+          image: regional-analytics/python-worker:latest
+          command: ["python", "parser_project/preprocessing_consumer.py"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vk-collector
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vk-collector
+  template:
+    metadata:
+      labels:
+        app: vk-collector
+    spec:
+      containers:
+        - name: vk-collector
+          image: regional-analytics/python-worker:latest
+          command: ["python", "parser_project/collect_vk_posts.py"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rss-collector
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rss-collector
+  template:
+    metadata:
+      labels:
+        app: rss-collector
+    spec:
+      containers:
+        - name: rss-collector
+          image: regional-analytics/python-worker:latest
+          command: ["python", "parser_project/collect_rss.py"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentiment-consumer
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentiment-consumer
+  template:
+    metadata:
+      labels:
+        app: sentiment-consumer
+    spec:
+      containers:
+        - name: sentiment-consumer
+          image: regional-analytics/python-worker:latest
+          command: ["python", "-m", "apps.orchestration.runtime.run_sentiment_consumer"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embedding-consumer
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: embedding-consumer
+  template:
+    metadata:
+      labels:
+        app: embedding-consumer
+    spec:
+      containers:
+        - name: embedding-consumer
+          image: regional-analytics/python-worker:latest
+          command: ["python", "-m", "apps.orchestration.runtime.run_embedding_consumer"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: clustering-incremental
+  namespace: regional-analytics
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: clustering-incremental
+              image: regional-analytics/python-worker:latest
+              command: ["python", "-m", "apps.orchestration.runtime.run_clustering_incremental"]
+              envFrom:
+                - configMapRef:
+                    name: regional-analytics-config
+                - secretRef:
+                    name: regional-analytics-secrets
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: clustering-full
+  namespace: regional-analytics
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: clustering-full
+              image: regional-analytics/python-worker:latest
+              command: ["python", "-m", "apps.orchestration.runtime.run_clustering_full"]
+              envFrom:
+                - configMapRef:
+                    name: regional-analytics-config
+                - secretRef:
+                    name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: summarization-consumer
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: summarization-consumer
+  template:
+    metadata:
+      labels:
+        app: summarization-consumer
+    spec:
+      containers:
+        - name: summarization-consumer
+          image: regional-analytics/python-worker:latest
+          command: ["python", "-m", "apps.orchestration.runtime.run_summarization_consumer"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ranking-consumer
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ranking-consumer
+  template:
+    metadata:
+      labels:
+        app: ranking-consumer
+    spec:
+      containers:
+        - name: ranking-consumer
+          image: regional-analytics/python-worker:latest
+          command: ["python", "-m", "apps.orchestration.runtime.run_ranking_consumer"]
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: regional-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.5.5
+          args:
+            - --model
+            - Qwen/Qwen2.5-7B-Instruct
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          ports:
+            - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm
+  namespace: regional-analytics
+spec:
+  selector:
+    app: vllm
+  ports:
+    - port: 8000
+      targetPort: 8000

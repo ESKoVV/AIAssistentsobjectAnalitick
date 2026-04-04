@@ -1,0 +1,81 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: regional-analytics-alerts
+  namespace: regional-analytics
+spec:
+  groups:
+    - name: regional-analytics
+      rules:
+        - alert: RankingSnapshotsStale
+          expr: pipeline_freshness_seconds{stage="rankings"} > 1800
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Ranking snapshots are stale
+            description: No fresh ranking snapshot has been produced for more than 30 minutes.
+        - alert: ClusterDescriptionsStale
+          expr: pipeline_freshness_seconds{stage="cluster_descriptions"} > 1800
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Cluster descriptions are stale
+            description: No fresh cluster descriptions were generated for more than 30 minutes.
+        - alert: EmbeddingsStale
+          expr: pipeline_freshness_seconds{stage="embeddings"} > 1800
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Embeddings are stale
+            description: No fresh embeddings were written for more than 30 minutes.
+        - alert: PublicAPIHigh5xxRate
+          expr: increase(api_requests_by_status_total{status_class="5xx"}[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Public API error rate needs inspection
+            description: Inspect API logs and ranking freshness before escalating.
+        - alert: PublicAPILatencyP99High
+          expr: api_response_time_p99_ms > 1500
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Public API p99 latency is elevated
+            description: Rolling p99 latency is above 1.5 seconds.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: regional-analytics-grafana-dashboard
+  namespace: regional-analytics
+  labels:
+    grafana_dashboard: "1"
+data:
+  regional-analytics-overview.json: |
+    {
+      "title": "Regional Analytics Overview",
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Ranking Freshness",
+          "targets": [{"expr": "pipeline_freshness_seconds{stage=\"rankings\"}"}]
+        },
+        {
+          "type": "timeseries",
+          "title": "Description Freshness",
+          "targets": [{"expr": "pipeline_freshness_seconds{stage=\"cluster_descriptions\"}"}]
+        },
+        {
+          "type": "timeseries",
+          "title": "Embedding Freshness",
+          "targets": [{"expr": "pipeline_freshness_seconds{stage=\"embeddings\"}"}]
+        }
+      ],
+      "schemaVersion": 39,
+      "version": 1
+    }

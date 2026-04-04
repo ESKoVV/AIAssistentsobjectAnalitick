@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: regional-analytics
+  namespace: regional-analytics
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-internal
+spec:
+  tls:
+    - hosts:
+        - analytics.example.internal
+      secretName: regional-analytics-tls
+  rules:
+    - host: analytics.example.internal
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: public-api
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ui
+                port:
+                  number: 80

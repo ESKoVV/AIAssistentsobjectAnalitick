@@ -54,10 +54,6 @@ def send_document_to_preprocessed_topic(document: dict) -> None:
     send_document(CONFIG.kafka_preprocessed_topic, document)
 
 
-def send_document_to_ml_topic(document: dict) -> None:
-    send_document(CONFIG.kafka_ml_topic, document)
-
-
 def close_producer() -> None:
     global producer
 
