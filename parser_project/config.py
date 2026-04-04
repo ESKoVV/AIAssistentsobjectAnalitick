@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,8 +50,49 @@ class AppConfig:
 def _csv_env(name: str, default: str = "") -> list[str]:
     raw = (os.getenv(name, default) or "").strip()
     if not raw:
+        raw = _read_multiline_env_value(name)
+    if not raw:
         return []
     return [value.strip() for value in raw.split(",") if value.strip()]
+
+
+_ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _read_multiline_env_value(name: str) -> str:
+    """
+    Поддержка формата:
+      VK_GROUP_DOMAINS=
+      group_1,
+      group_2,
+      group_3
+    в parser_project/.env.
+    """
+    env_path = PROJECT_DIR / ".env"
+    if not env_path.exists():
+        return ""
+
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    prefix = f"{name}="
+    for idx, line in enumerate(lines):
+        if not line.startswith(prefix):
+            continue
+
+        first_value = line[len(prefix) :].strip()
+        if first_value:
+            return first_value
+
+        collected: list[str] = []
+        for next_line in lines[idx + 1 :]:
+            stripped = next_line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if _ENV_KEY_PATTERN.match(stripped):
+                break
+            collected.append(stripped)
+        return "".join(collected)
+
+    return ""
 
 
 def _int_env(name: str, default: int) -> int:
