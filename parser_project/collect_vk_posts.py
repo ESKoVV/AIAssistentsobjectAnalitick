@@ -2,8 +2,9 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from config import load_config, validate_vk_config
+from id_builders import build_vk_comment_doc_id, build_vk_post_doc_id
 from kafka_producer import send_document
-from normalizers.vk import normalize_vk_comment, normalize_vk_post
+from schema import RawDocument, SourceType
 from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
 
 CONFIG = load_config()
@@ -20,6 +21,82 @@ def _vk_created_at(raw_item: dict) -> datetime:
     if raw_ts is None:
         raise ValueError("В VK-объекте отсутствует поле date")
     return datetime.fromtimestamp(raw_ts, timezone.utc)
+
+
+def _to_source_url(owner_id: int, post_id: int, comment_id: int | None = None) -> str:
+    base_url = f"https://vk.com/wall{owner_id}_{post_id}"
+    if comment_id is None:
+        return base_url
+    return f"{base_url}?reply={comment_id}"
+
+
+def _extract_engagement(raw_item: dict) -> dict:
+    engagement_raw = {}
+    for key in ("likes", "reposts", "comments", "views"):
+        if key in raw_item:
+            engagement_raw[key] = raw_item[key]
+    return engagement_raw
+
+
+def _author_raw(raw_item: dict) -> str | None:
+    author_id = raw_item.get("from_id")
+    if author_id is None:
+        author_id = raw_item.get("owner_id")
+    if author_id is None:
+        return None
+    return str(author_id)
+
+
+def _created_at_raw(raw_item: dict) -> str | None:
+    raw_date = raw_item.get("date")
+    if raw_date is None:
+        return None
+    return str(raw_date)
+
+
+def build_raw_vk_post_document(raw_post: dict, collected_at: datetime) -> RawDocument:
+    source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
+    return RawDocument(
+        doc_id=build_vk_post_doc_id(source_id),
+        source_type=SourceType.VK_POST.value,
+        source_id=source_id,
+        parent_source_id=None,
+        text_raw=raw_post.get("text", ""),
+        title_raw=None,
+        author_raw=_author_raw(raw_post),
+        created_at_raw=_created_at_raw(raw_post),
+        created_at=_vk_created_at(raw_post),
+        collected_at=collected_at,
+        source_url=_to_source_url(raw_post["owner_id"], raw_post["id"]),
+        source_domain="vk.com",
+        region_hint_raw=None,
+        geo_raw=raw_post.get("geo"),
+        engagement_raw=_extract_engagement(raw_post),
+        raw_payload=raw_post,
+    )
+
+
+def build_raw_vk_comment_document(raw_comment: dict, raw_post: dict, collected_at: datetime) -> RawDocument:
+    parent_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
+    source_id = f"{parent_source_id}_{raw_comment['id']}"
+    return RawDocument(
+        doc_id=build_vk_comment_doc_id(source_id),
+        source_type=SourceType.VK_COMMENT.value,
+        source_id=source_id,
+        parent_source_id=parent_source_id,
+        text_raw=raw_comment.get("text", ""),
+        title_raw=None,
+        author_raw=_author_raw(raw_comment),
+        created_at_raw=_created_at_raw(raw_comment),
+        created_at=_vk_created_at(raw_comment),
+        collected_at=collected_at,
+        source_url=_to_source_url(raw_post["owner_id"], raw_post["id"], raw_comment["id"]),
+        source_domain="vk.com",
+        region_hint_raw=None,
+        geo_raw=raw_comment.get("geo"),
+        engagement_raw=_extract_engagement(raw_comment),
+        raw_payload=raw_comment,
+    )
 
 
 def get_group_owner_id(screen_name: str) -> int:
@@ -41,7 +118,7 @@ def save_document_jsonl(path: str, doc) -> None:
     with open(path, "a", encoding="utf-8") as f:
         f.write(
             json.dumps(
-                doc.model_dump(),
+                doc.model_dump(mode="json"),
                 ensure_ascii=False,
                 default=str,
             )
@@ -106,12 +183,13 @@ def main():
                     if not text.strip():
                         continue
 
-                    doc = normalize_vk_post(raw_post)
+                    collected_at = datetime.now(timezone.utc)
+                    doc = build_raw_vk_post_document(raw_post, collected_at)
 
-                    send_document(CONFIG.kafka_topic, doc.model_dump())
+                    send_document(CONFIG.kafka_topic, doc.model_dump(mode="json"))
                     save_document_jsonl("documents.jsonl", doc)
 
-                    short_view = doc.model_dump()
+                    short_view = doc.model_dump(mode="json")
                     short_view.pop("raw_payload", None)
 
                     print(json.dumps(short_view, indent=2, ensure_ascii=False, default=str))
@@ -140,8 +218,13 @@ def main():
                             if not comment_text.strip():
                                 continue
 
-                            comment_doc = normalize_vk_comment(raw_comment, raw_post)
-                            send_document(CONFIG.kafka_topic, comment_doc.model_dump())
+                            comment_collected_at = datetime.now(timezone.utc)
+                            comment_doc = build_raw_vk_comment_document(
+                                raw_comment,
+                                raw_post,
+                                comment_collected_at,
+                            )
+                            send_document(CONFIG.kafka_topic, comment_doc.model_dump(mode="json"))
                             save_document_jsonl("documents.jsonl", comment_doc)
                             total_sent += 1
                             post_comments_sent += 1
