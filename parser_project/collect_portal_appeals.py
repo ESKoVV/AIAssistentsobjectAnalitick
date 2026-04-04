@@ -1,16 +1,33 @@
+import hashlib
 import json
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import urljoin, urlparse
 
-from config import load_config, validate_portal_config
+import requests
+from bs4 import BeautifulSoup
+
+from config import _csv_env, load_config, validate_portal_config
 from id_builders import build_portal_appeal_doc_id
 from kafka_producer import send_document
 from schema import MediaType, NormalizedDocument, SourceType
 
 CONFIG = load_config()
+PORTAL_URLS = _csv_env("PORTAL_URLS")
+PORTAL_KEYWORDS = [keyword.lower() for keyword in _csv_env("PORTAL_KEYWORDS")]
+
+DEFAULT_TIMEOUT_SECONDS = 10
+DEFAULT_ARTICLES_PER_SITE = 15
+
+logging.basicConfig(
+    level=getattr(logging, (CONFIG.log_level or "INFO").upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -114,6 +131,167 @@ class MockLocalFilePortalLoader(PortalAppealLoader):
         )
 
 
+class HtmlPortalLoader(PortalAppealLoader):
+    """Собирает обращения с обычных HTML-страниц порталов."""
+
+    def __init__(
+        self,
+        portal_urls: list[str],
+        keywords: list[str],
+        max_articles_per_site: int = DEFAULT_ARTICLES_PER_SITE,
+        timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    ):
+        self._portal_urls = portal_urls
+        self._keywords = [k.lower() for k in keywords if k.strip()]
+        self._max_articles_per_site = max_articles_per_site
+        self._timeout_seconds = timeout_seconds
+        self._session = requests.Session()
+        self._session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (compatible; PortalAppealsBot/1.0; +https://example.local/bot)",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            }
+        )
+
+    def iter_appeals(self) -> Iterable[RawPortalAppeal]:
+        if not self._portal_urls:
+            logger.warning("PORTAL_URLS пустой: нет источников для HTML scraping.")
+            return
+
+        if not self._keywords:
+            logger.warning("PORTAL_KEYWORDS пустой: фильтрация по ключевым словам отключена.")
+
+        for portal_url in self._portal_urls:
+            logger.info("Сканирование портала: %s", portal_url)
+
+            try:
+                root_soup = self._fetch_soup(portal_url)
+            except Exception as error:
+                logger.warning("Не удалось загрузить портал %s: %s", portal_url, error)
+                continue
+
+            article_urls = self._extract_article_links(portal_url, root_soup)
+            limited_urls = article_urls[: self._max_articles_per_site]
+            logger.info(
+                "Портал %s: найдено %s ссылок, обработаем %s",
+                portal_url,
+                len(article_urls),
+                len(limited_urls),
+            )
+
+            for article_url in limited_urls:
+                try:
+                    article = self._parse_article(article_url)
+                    if not article:
+                        continue
+
+                    title, text, created_at_raw = article
+                    if not self._matches_keywords(text):
+                        logger.debug("Статья не прошла фильтр ключевых слов: %s", article_url)
+                        continue
+
+                    appeal_id = hashlib.sha1(article_url.encode("utf-8")).hexdigest()
+                    payload = {
+                        "portal_url": portal_url,
+                        "article_url": article_url,
+                        "title": title,
+                        "created_at": created_at_raw,
+                        "keywords": self._keywords,
+                    }
+
+                    yield RawPortalAppeal(
+                        appeal_id=appeal_id,
+                        text=f"{title}\n\n{text}".strip(),
+                        created_at=parse_datetime_or_now(created_at_raw),
+                        region_hint="rostov",
+                        author_id=urlparse(portal_url).netloc,
+                        raw_payload=payload,
+                    )
+                except Exception as error:
+                    logger.warning("Ошибка обработки статьи %s: %s", article_url, error)
+
+    def _fetch_soup(self, url: str) -> BeautifulSoup:
+        response = self._session.get(url, timeout=self._timeout_seconds)
+        response.raise_for_status()
+        return BeautifulSoup(response.text, "html.parser")
+
+    def _extract_article_links(self, base_url: str, soup: BeautifulSoup) -> list[str]:
+        base_domain = urlparse(base_url).netloc
+        candidates: list[str] = []
+        seen: set[str] = set()
+
+        for link in soup.select("a[href]"):
+            href = (link.get("href") or "").strip()
+            if not href or href.startswith("#"):
+                continue
+
+            absolute_url = urljoin(base_url, href)
+            parsed = urlparse(absolute_url)
+            if parsed.scheme not in {"http", "https"}:
+                continue
+            if base_domain not in parsed.netloc:
+                continue
+            if any(parsed.path.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf")):
+                continue
+
+            normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}".rstrip("/")
+            if normalized in seen:
+                continue
+
+            seen.add(normalized)
+            candidates.append(normalized)
+
+        return candidates
+
+    def _parse_article(self, article_url: str) -> tuple[str, str, str | None] | None:
+        soup = self._fetch_soup(article_url)
+
+        title = ""
+        h1 = soup.find("h1")
+        if h1:
+            title = h1.get_text(" ", strip=True)
+
+        paragraphs = [p.get_text(" ", strip=True) for p in soup.select("p")]
+        paragraphs = [p for p in paragraphs if p]
+        text = "\n".join(paragraphs)
+
+        if not title and not text:
+            logger.debug("Пустая статья (без h1 и p): %s", article_url)
+            return None
+
+        created_at = self._extract_date(soup)
+        return title, text, created_at
+
+    @staticmethod
+    def _extract_date(soup: BeautifulSoup) -> str | None:
+        time_tag = soup.find("time")
+        if time_tag:
+            datetime_attr = time_tag.get("datetime")
+            if datetime_attr:
+                return datetime_attr
+            time_text = time_tag.get_text(" ", strip=True)
+            if time_text:
+                return time_text
+
+        for selector, attr in (
+            ('meta[property="article:published_time"]', "content"),
+            ('meta[name="pubdate"]', "content"),
+            ('meta[name="publish_date"]', "content"),
+            ('meta[name="date"]', "content"),
+        ):
+            tag = soup.select_one(selector)
+            if tag and tag.get(attr):
+                return str(tag.get(attr))
+
+        return None
+
+    def _matches_keywords(self, text: str) -> bool:
+        if not self._keywords:
+            return True
+        lowered = text.lower()
+        return any(keyword in lowered for keyword in self._keywords)
+
+
 def parse_datetime_or_now(value: Any) -> datetime:
     if isinstance(value, datetime):
         if value.tzinfo is None:
@@ -169,7 +347,9 @@ def build_loader(source_name: str, **kwargs: Any) -> PortalAppealLoader:
     """
     Фабрика загрузчиков по типу источника.
 
-    TODO: Добавить реализации для production-порталов (API, auth, pagination, retries).
+    Поддерживаемые источники:
+      - mock_local_file
+      - html_portals
     """
 
     if source_name == "mock_local_file":
@@ -178,17 +358,38 @@ def build_loader(source_name: str, **kwargs: Any) -> PortalAppealLoader:
             raise ValueError("Для mock_local_file требуется file_path")
         return MockLocalFilePortalLoader(file_path=file_path)
 
+    if source_name == "html_portals":
+        portal_urls = kwargs.get("portal_urls") or []
+        keywords = kwargs.get("keywords") or []
+        max_articles_per_site = int(kwargs.get("max_articles_per_site") or DEFAULT_ARTICLES_PER_SITE)
+        timeout_seconds = int(kwargs.get("timeout_seconds") or DEFAULT_TIMEOUT_SECONDS)
+
+        return HtmlPortalLoader(
+            portal_urls=portal_urls,
+            keywords=keywords,
+            max_articles_per_site=max_articles_per_site,
+            timeout_seconds=timeout_seconds,
+        )
+
     raise ValueError(f"Неизвестный тип источника PORTAL_SOURCE: {source_name}")
 
 
 def main() -> None:
     validate_portal_config(CONFIG)
-    loader = build_loader(CONFIG.portal_source, file_path=CONFIG.portal_appeals_file)
+    loader = build_loader(
+        CONFIG.portal_source,
+        file_path=CONFIG.portal_appeals_file,
+        portal_urls=PORTAL_URLS,
+        keywords=PORTAL_KEYWORDS,
+    )
 
     print(f"Источник обращений: {CONFIG.portal_source}")
     print(f"Портал: {CONFIG.portal_name}")
     if CONFIG.portal_source == "mock_local_file":
         print(f"Файл: {CONFIG.portal_appeals_file}")
+    if CONFIG.portal_source == "html_portals":
+        print(f"Сайтов для обхода: {len(PORTAL_URLS)}")
+        print(f"Ключевых слов: {len(PORTAL_KEYWORDS)}")
     print("-" * 80)
 
     sent = 0
