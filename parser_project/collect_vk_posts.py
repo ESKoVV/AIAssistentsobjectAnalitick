@@ -4,8 +4,8 @@ import os
 from dotenv import load_dotenv
 
 from kafka_producer import send_document
-from normalizers.vk import normalize_vk_post
-from vk_client import get_wall_posts, resolve_screen_name
+from normalizers.vk import normalize_vk_comment, normalize_vk_post
+from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
 
 load_dotenv()
 
@@ -78,6 +78,32 @@ def main():
                 print("-" * 80)
 
                 total_sent += 1
+
+                post_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
+                try:
+                    raw_comments = get_post_comments(
+                        owner_id=raw_post["owner_id"],
+                        post_id=raw_post["id"],
+                    )
+                    print(f"[{domain}] [{post_source_id}] Получено комментариев: {len(raw_comments)}")
+
+                    post_comments_sent = 0
+                    for raw_comment in raw_comments:
+                        comment_text = raw_comment.get("text", "")
+                        if not comment_text.strip():
+                            continue
+
+                        comment_doc = normalize_vk_comment(raw_comment, raw_post)
+                        send_document(KAFKA_TOPIC, comment_doc.model_dump())
+                        save_document_jsonl("documents.jsonl", comment_doc)
+                        total_sent += 1
+                        post_comments_sent += 1
+
+                    print(f"[{domain}] [{post_source_id}] Отправлено комментариев: {post_comments_sent}")
+                    print("-" * 80)
+                except Exception as e:
+                    print(f"[{domain}] [{post_source_id}] Ошибка сбора комментариев: {e}")
+                    print("-" * 80)
 
         except Exception as e:
             print(f"[{domain}] Ошибка: {e}")

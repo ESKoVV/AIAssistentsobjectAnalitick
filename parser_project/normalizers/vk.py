@@ -4,6 +4,10 @@ from datetime import datetime, UTC
 from schema import NormalizedDocument, SourceType, MediaType
 
 
+def _stable_doc_id(source_type: SourceType, source_id: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source_type.value}:{source_id}"))
+
+
 def normalize_vk_post(raw_post: dict) -> NormalizedDocument:
     text = raw_post.get("text", "")
     if not text.strip():
@@ -64,4 +68,38 @@ def normalize_vk_post(raw_post: dict) -> NormalizedDocument:
         geo_lat=geo_lat,
         geo_lon=geo_lon,
         raw_payload=raw_post,
+    )
+
+
+def normalize_vk_comment(raw_comment: dict, parent_post: dict) -> NormalizedDocument:
+    text = raw_comment.get("text", "")
+    if not text.strip():
+        raise ValueError("Пустой text комментария: документ не создаём")
+
+    owner_id = parent_post["owner_id"]
+    post_id = parent_post["id"]
+    comment_id = raw_comment["id"]
+
+    source_id = f"{owner_id}_{post_id}_{comment_id}"
+    parent_source_id = f"{owner_id}_{post_id}"
+
+    return NormalizedDocument(
+        doc_id=_stable_doc_id(SourceType.VK_COMMENT, source_id),
+        source_type=SourceType.VK_COMMENT,
+        source_id=source_id,
+        parent_id=parent_source_id,
+        text=text,
+        media_type=MediaType.TEXT,
+        created_at=datetime.fromtimestamp(raw_comment["date"], UTC),
+        collected_at=datetime.now(UTC),
+        author_id=str(raw_comment.get("from_id", "")),
+        is_official=False,
+        reach=0,
+        likes=raw_comment.get("likes", {}).get("count", 0),
+        reposts=0,
+        comments_count=raw_comment.get("thread", {}).get("count", 0),
+        region_hint=None,
+        geo_lat=None,
+        geo_lon=None,
+        raw_payload=raw_comment,
     )
