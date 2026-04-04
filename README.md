@@ -76,7 +76,7 @@
 - метрики: `reach`, `likes`, `reposts`, `comments_count`
 - гео: `region_hint`, `geo_lat`, `geo_lon`
 
-Именно эта таблица используется как источник данных для ленты в UI.
+По умолчанию именно эта таблица используется как источник данных для ленты в UI, но таблицу можно переопределить через `API_DOCUMENTS_TABLE`/`documents_table` в `configs/api_top.yaml`.
 
 ---
 
@@ -116,6 +116,7 @@
 
 - `API_HOST=0.0.0.0`
 - `API_PORT=8000`
+- `API_DOCUMENTS_TABLE=normalized_documents` (если нужно переключить API на другую таблицу)
 
 Для UI (`apps/ui/.env`):
 

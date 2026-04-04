@@ -39,7 +39,10 @@ logger = logging.getLogger(__name__)
 
 def create_app(config: APIConfig | None = None) -> FastAPI:
     config = config or APIConfig.from_env()
-    repository = PublicAPIRepository(config.database_url or "")
+    repository = PublicAPIRepository(
+        config.database_url or "",
+        documents_table=config.documents_table,
+    )
     cache = TopCache(config.redis_dsn, ttl_seconds=config.cache_ttl_seconds)
     service = TopAPIService(repository=repository, cache=cache, config=config)
     metrics = MetricsRegistry()
