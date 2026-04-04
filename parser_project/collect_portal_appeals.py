@@ -12,7 +12,6 @@ import requests
 from bs4 import BeautifulSoup
 
 from config import _csv_env, load_config, validate_portal_config
-from id_builders import build_portal_appeal_doc_id
 from kafka_producer import send_document
 from schema import RawDocument, SourceType
 
@@ -325,27 +324,25 @@ def parse_datetime_or_now(value: Any) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def normalize_portal_appeal(appeal: RawPortalAppeal) -> RawDocument:
+def build_raw_portal_appeal(appeal: RawPortalAppeal) -> RawDocument:
     collected_at = datetime.now(timezone.utc)
     created_at = parse_datetime_or_now(appeal.created_at_raw)
 
     return RawDocument(
-        doc_id=build_portal_appeal_doc_id(appeal.appeal_id),
         source_type=SourceType.PORTAL_APPEAL.value,
         source_id=appeal.appeal_id,
         parent_source_id=None,
         text_raw=appeal.text_raw,
-        title_raw=appeal.title_raw,
         author_raw=appeal.author_raw,
-        created_at_raw=appeal.created_at_raw,
         created_at=created_at,
         collected_at=collected_at,
-        source_url=appeal.source_url,
-        source_domain=appeal.source_domain,
-        region_hint_raw=appeal.region_hint_raw,
-        geo_raw=None,
-        engagement_raw={},
+        media_type=None,
         raw_payload=appeal.raw_payload,
+        is_official=False,
+        reach=0,
+        likes=0,
+        reposts=0,
+        comments_count=0,
     )
 
 
@@ -407,8 +404,8 @@ def main() -> None:
 
     for appeal in loader.iter_appeals():
         try:
-            doc = normalize_portal_appeal(appeal)
-            send_document(CONFIG.kafka_topic, doc.model_dump(mode="json"))
+            doc = build_raw_portal_appeal(appeal)
+            send_document(CONFIG.kafka_raw_topic, doc.model_dump(mode="json"))
             save_document_jsonl("documents.jsonl", doc)
 
             short_view = doc.model_dump(mode="json")

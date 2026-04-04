@@ -30,6 +30,7 @@ class AppConfig:
     failed_messages_path: Path
 
     database_url: str | None
+    raw_database_url: str | None
 
     vk_token: str | None
     vk_api_version: str
@@ -129,6 +130,7 @@ def load_config() -> AppConfig:
         kafka_group_id=_text_env("KAFKA_GROUP_ID", "documents-consumer-group") or "documents-consumer-group",
         failed_messages_path=Path(_text_env("FAILED_MESSAGES_PATH", "failed_messages.jsonl") or "failed_messages.jsonl"),
         database_url=_text_env("DATABASE_URL"),
+        raw_database_url=_text_env("RAW_DATABASE_URL"),
         vk_token=_text_env("VK_TOKEN"),
         vk_api_version=_text_env("VK_API_VERSION", "5.131") or "5.131",
         vk_group_domains=_csv_env("VK_GROUP_DOMAINS"),
@@ -215,3 +217,10 @@ def validate_db_config(config: AppConfig) -> None:
     if not config.database_url:
         missing.append("DATABASE_URL")
     _raise_missing("подключения к PostgreSQL", missing)
+
+
+def validate_raw_db_config(config: AppConfig) -> None:
+    missing: list[str] = []
+    if not config.raw_database_url:
+        missing.append("RAW_DATABASE_URL")
+    _raise_missing("raw-подключения к PostgreSQL", missing)

@@ -46,46 +46,34 @@ def _safe_int(value: Any) -> int | None:
 
 
 def build_ml_payload(document: RawDocument) -> dict[str, Any]:
-    engagement_raw = document.engagement_raw or {}
-    likes = _safe_int(engagement_raw.get("likes"))
-    reposts = _safe_int(engagement_raw.get("reposts"))
-    comments = _safe_int(engagement_raw.get("comments"))
-    views = _safe_int(engagement_raw.get("views"))
-
     text = (document.text_raw or "").strip()
-    if not text:
-        text = (document.title_raw or "").strip()
+
+    doc_id = document.doc_id or f"{document.source_type}:{document.source_id}"
 
     return {
-        "doc_id": document.doc_id,
+        "doc_id": doc_id,
         "text": text,
         "normalized_text": None,
         "language": None,
-        "region_id": document.region_hint_raw,
+        "region_id": None,
         "municipality_id": None,
         "geo_confidence": None,
-        "reach": views,
+        "reach": document.reach,
         "engagement": {
-            "likes": likes,
-            "reposts": reposts,
-            "comments_count": comments,
+            "likes": document.likes,
+            "reposts": document.reposts,
+            "comments_count": document.comments_count,
         },
-        "is_official": None,
-        "media_type": document.raw_payload.get("media_type") if isinstance(document.raw_payload, dict) else None,
+        "is_official": document.is_official,
+        "media_type": document.media_type,
         "created_at_utc": document.created_at.isoformat(),
         "pipeline_version": "raw-to-ml-bridge-v1",
         "raw_equivalents": {
             "text_raw": document.text_raw,
-            "title_raw": document.title_raw,
             "author_raw": document.author_raw,
-            "created_at_raw": document.created_at_raw,
-            "region_hint_raw": document.region_hint_raw,
-            "geo_raw": document.geo_raw,
             "source_type": document.source_type,
             "source_id": document.source_id,
             "parent_source_id": document.parent_source_id,
-            "source_url": document.source_url,
-            "source_domain": document.source_domain,
         },
     }
 
@@ -127,11 +115,11 @@ def main() -> None:
                 producer.send(CONFIG.kafka_ml_topic, ml_payload).get(timeout=30)
                 producer.flush()
                 consumer.commit()
-                print(f"✅ Отправлен документ в ML topic: {raw_document.doc_id}")
+                print(f"✅ Отправлен документ в ML topic: {raw_document.source_type}:{raw_document.source_id}")
             except Exception as exc:
                 print(
                     "❌ Ошибка отправки в ML topic "
-                    f"offset={message.offset}, doc_id={raw_document.doc_id}: {exc}"
+                    f"offset={message.offset}, source_id={raw_document.source_id}: {exc}"
                 )
                 save_failed_message(raw_data, str(exc))
 

@@ -1,19 +1,24 @@
+import gzip
 import json
 from contextlib import contextmanager
-from typing import Generator, Optional
+from typing import Any, Generator, Optional
 
 import psycopg
 
-from config import load_config, validate_db_config
+from config import load_config, validate_db_config, validate_raw_db_config
 from dedup_legacy import upsert_document_fingerprint_legacy
 from schema import NormalizedDocument, RawDocument
 
 CONFIG = load_config()
-validate_db_config(CONFIG)
+
+COMPRESSION_CODEC = "gzip"
+TEXT_PREVIEW_LIMIT = 1000
+RAW_PAYLOAD_PREVIEW_LIMIT = 2000
 
 
 @contextmanager
 def get_connection() -> Generator[psycopg.Connection, None, None]:
+    validate_db_config(CONFIG)
     conn = psycopg.connect(CONFIG.database_url)
     try:
         yield conn
@@ -23,6 +28,63 @@ def get_connection() -> Generator[psycopg.Connection, None, None]:
         raise
     finally:
         conn.close()
+
+
+@contextmanager
+def get_raw_connection() -> Generator[psycopg.Connection, None, None]:
+    validate_raw_db_config(CONFIG)
+    conn = psycopg.connect(CONFIG.raw_database_url)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def compress_text(value: str) -> bytes:
+    return gzip.compress(value.encode("utf-8"))
+
+
+def compress_raw_payload(value: dict[str, Any]) -> bytes:
+    raw_json = json.dumps(value, ensure_ascii=False, default=str)
+    return gzip.compress(raw_json.encode("utf-8"))
+
+
+def decompress_text(value: bytes | None, fallback: str = "") -> str:
+    if not value:
+        return fallback
+    return gzip.decompress(value).decode("utf-8")
+
+
+def decompress_raw_payload(value: bytes | None, fallback: Optional[dict] = None) -> dict[str, Any]:
+    if not value:
+        return fallback or {}
+    raw_json = gzip.decompress(value).decode("utf-8")
+    return json.loads(raw_json)
+
+
+def _serialize_jsonb(value: Optional[dict]) -> str:
+    return json.dumps(value or {}, ensure_ascii=False, default=str)
+
+
+def _text_preview(text: str) -> str:
+    clean = (text or "").strip()
+    if len(clean) <= TEXT_PREVIEW_LIMIT:
+        return clean
+    return clean[:TEXT_PREVIEW_LIMIT]
+
+
+def _raw_payload_preview(raw_payload: dict[str, Any]) -> dict[str, Any]:
+    raw_json = json.dumps(raw_payload or {}, ensure_ascii=False, default=str)
+    preview = raw_json[:RAW_PAYLOAD_PREVIEW_LIMIT]
+    return {
+        "compressed": True,
+        "preview": preview,
+        "truncated": len(raw_json) > RAW_PAYLOAD_PREVIEW_LIMIT,
+    }
 
 
 def upsert_document(document: NormalizedDocument) -> None:
@@ -98,72 +160,85 @@ def upsert_document(document: NormalizedDocument) -> None:
 
 def upsert_raw_document(document: RawDocument) -> None:
     query = """
-    INSERT INTO raw_documents (
-        doc_id,
+    INSERT INTO public.raw_messages (
         source_type,
         source_id,
-        parent_source_id,
-        text_raw,
-        title_raw,
-        author_raw,
-        created_at_raw,
-        created_at,
+        author_id,
+        text,
+        text_compressed,
+        media_type,
+        created_at_utc,
         collected_at,
-        source_url,
-        source_domain,
-        region_hint_raw,
-        geo_raw,
-        engagement_raw,
-        raw_payload
+        raw_payload,
+        raw_payload_compressed,
+        compression_codec,
+        is_official,
+        reach,
+        likes,
+        reposts,
+        comments_count,
+        parent_id
     ) VALUES (
-        %(doc_id)s,
         %(source_type)s,
         %(source_id)s,
-        %(parent_source_id)s,
-        %(text_raw)s,
-        %(title_raw)s,
-        %(author_raw)s,
-        %(created_at_raw)s,
-        %(created_at)s,
+        %(author_id)s,
+        %(text)s,
+        %(text_compressed)s,
+        %(media_type)s,
+        %(created_at_utc)s,
         %(collected_at)s,
-        %(source_url)s,
-        %(source_domain)s,
-        %(region_hint_raw)s,
-        %(geo_raw)s::jsonb,
-        %(engagement_raw)s::jsonb,
-        %(raw_payload)s::jsonb
+        %(raw_payload)s::jsonb,
+        %(raw_payload_compressed)s,
+        %(compression_codec)s,
+        %(is_official)s,
+        %(reach)s,
+        %(likes)s,
+        %(reposts)s,
+        %(comments_count)s,
+        %(parent_id)s
     )
-    ON CONFLICT (doc_id) DO UPDATE
+    ON CONFLICT (source_type, source_id) DO UPDATE
     SET
-        source_type = EXCLUDED.source_type,
-        source_id = EXCLUDED.source_id,
-        parent_source_id = EXCLUDED.parent_source_id,
-        text_raw = EXCLUDED.text_raw,
-        title_raw = EXCLUDED.title_raw,
-        author_raw = EXCLUDED.author_raw,
-        created_at_raw = EXCLUDED.created_at_raw,
-        created_at = EXCLUDED.created_at,
+        author_id = EXCLUDED.author_id,
+        text = EXCLUDED.text,
+        text_compressed = EXCLUDED.text_compressed,
+        media_type = EXCLUDED.media_type,
+        created_at_utc = EXCLUDED.created_at_utc,
         collected_at = EXCLUDED.collected_at,
-        source_url = EXCLUDED.source_url,
-        source_domain = EXCLUDED.source_domain,
-        region_hint_raw = EXCLUDED.region_hint_raw,
-        geo_raw = EXCLUDED.geo_raw,
-        engagement_raw = EXCLUDED.engagement_raw,
-        raw_payload = EXCLUDED.raw_payload;
+        raw_payload = EXCLUDED.raw_payload,
+        raw_payload_compressed = EXCLUDED.raw_payload_compressed,
+        compression_codec = EXCLUDED.compression_codec,
+        is_official = EXCLUDED.is_official,
+        reach = EXCLUDED.reach,
+        likes = EXCLUDED.likes,
+        reposts = EXCLUDED.reposts,
+        comments_count = EXCLUDED.comments_count,
+        parent_id = EXCLUDED.parent_id;
     """
 
-    payload = document.model_dump(mode="json")
-    payload["geo_raw"] = _serialize_jsonb(payload.get("geo_raw"))
-    payload["engagement_raw"] = _serialize_jsonb(payload.get("engagement_raw"))
-    payload["raw_payload"] = _serialize_jsonb(payload.get("raw_payload"))
+    payload = {
+        "source_type": document.source_type,
+        "source_id": document.source_id,
+        "author_id": document.author_raw,
+        "text": _text_preview(document.text_raw),
+        "text_compressed": compress_text(document.text_raw),
+        "media_type": document.media_type,
+        "created_at_utc": document.created_at,
+        "collected_at": document.collected_at,
+        "raw_payload": _serialize_jsonb(_raw_payload_preview(document.raw_payload)),
+        "raw_payload_compressed": compress_raw_payload(document.raw_payload),
+        "compression_codec": COMPRESSION_CODEC,
+        "is_official": document.is_official,
+        "reach": document.reach,
+        "likes": document.likes,
+        "reposts": document.reposts,
+        "comments_count": document.comments_count,
+        "parent_id": document.parent_source_id,
+    }
 
-    with get_connection() as conn:
+    with get_raw_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(query, payload)
-
-
-def _serialize_jsonb(value: Optional[dict]) -> str:
-    return json.dumps(value or {}, ensure_ascii=False)
 
 
 def save_ml_result(

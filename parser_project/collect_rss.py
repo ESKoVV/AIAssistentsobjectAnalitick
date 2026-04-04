@@ -3,10 +3,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import urlparse
 
 from config import load_config, validate_rss_config
-from id_builders import build_rss_article_doc_id
 from schema import RawDocument, SourceType
 
 CONFIG = load_config()
@@ -73,31 +71,6 @@ def _to_raw_payload(entry: dict[str, Any]) -> dict[str, Any]:
     return json.loads(json.dumps(entry, ensure_ascii=False, default=str))
 
 
-def _created_at_raw(entry: dict[str, Any]) -> str | None:
-    for field in ("published", "updated"):
-        raw_value = entry.get(field)
-        if raw_value is not None:
-            return str(raw_value)
-    return None
-
-
-def _source_url(entry: dict[str, Any]) -> str | None:
-    link = entry.get("link")
-    if link:
-        return str(link)
-    entry_id = entry.get("id")
-    if entry_id:
-        return str(entry_id)
-    return None
-
-
-def _source_domain(feed_url: str, source_url: str | None) -> str | None:
-    candidate = source_url or feed_url
-    if not candidate:
-        return None
-    return urlparse(candidate).netloc or None
-
-
 def build_raw_rss_entry(feed_url: str, entry: dict[str, Any]) -> RawDocument:
     text = _extract_text(entry)
     if not text.strip():
@@ -105,27 +78,23 @@ def build_raw_rss_entry(feed_url: str, entry: dict[str, Any]) -> RawDocument:
 
     source_id = _build_source_id(feed_url, entry)
     raw_payload = _to_raw_payload(entry)
-    source_url = _source_url(entry)
-    title_raw = entry.get("title")
     author_raw = entry.get("author") or entry.get("source", {}).get("title")
 
     return RawDocument(
-        doc_id=build_rss_article_doc_id(source_id),
         source_type=SourceType.RSS_ARTICLE.value,
         source_id=source_id,
         parent_source_id=None,
         text_raw=text,
-        title_raw=str(title_raw) if title_raw is not None else None,
         author_raw=str(author_raw) if author_raw is not None else None,
-        created_at_raw=_created_at_raw(entry),
         created_at=_parse_entry_datetime(entry),
         collected_at=datetime.now(timezone.utc),
-        source_url=source_url,
-        source_domain=_source_domain(feed_url, source_url),
-        region_hint_raw=None,
-        geo_raw=None,
-        engagement_raw={},
+        media_type="link",
         raw_payload=raw_payload,
+        is_official=False,
+        reach=0,
+        likes=0,
+        reposts=0,
+        comments_count=0,
     )
 
 
@@ -182,7 +151,7 @@ def main() -> None:
                     doc = build_raw_rss_entry(feed_url, entry)
                     from kafka_producer import send_document
 
-                    send_document(CONFIG.kafka_topic, doc.model_dump(mode="json"))
+                    send_document(CONFIG.kafka_raw_topic, doc.model_dump(mode="json"))
                     save_document_jsonl("documents.jsonl", doc)
 
                     short_view = doc.model_dump(mode="json")

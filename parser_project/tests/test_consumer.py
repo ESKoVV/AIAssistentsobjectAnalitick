@@ -7,21 +7,14 @@ from schema import RawDocument
 
 def _raw_payload() -> dict:
     return RawDocument(
-        doc_id="rss_article:ok-1",
         source_type="rss_article",
         source_id="ok-1",
         parent_source_id=None,
         text_raw="raw text",
-        title_raw="title",
         author_raw=None,
-        created_at_raw="Wed, 03 Apr 2024 10:00:00 +0300",
+        media_type="link",
         created_at=datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc),
         collected_at=datetime(2026, 4, 4, 12, 1, tzinfo=timezone.utc),
-        source_url="https://example.com/item",
-        source_domain="example.com",
-        region_hint_raw=None,
-        geo_raw=None,
-        engagement_raw={},
         raw_payload={"id": "ok-1"},
     ).model_dump(mode="json")
 
@@ -45,15 +38,17 @@ class FakeKafkaConsumer:
 
 def test_consumer_commits_after_successful_upsert(monkeypatch) -> None:
     fake_consumer = FakeKafkaConsumer([_raw_payload()])
-    upserted_doc_ids: list[str] = []
+    upserted_ids: list[str] = []
 
     monkeypatch.setattr(consumer, "KafkaConsumer", lambda *args, **kwargs: fake_consumer)
-    monkeypatch.setattr(consumer, "upsert_raw_document", lambda doc: upserted_doc_ids.append(doc.doc_id))
+    monkeypatch.setattr(consumer, "validate_consumer_config", lambda *_: None)
+    monkeypatch.setattr(consumer, "validate_raw_db_config", lambda *_: None)
+    monkeypatch.setattr(consumer, "upsert_raw_document", lambda doc: upserted_ids.append(doc.source_id))
     monkeypatch.setattr(consumer, "save_failed_message", lambda raw, error: None)
 
     consumer.main()
 
-    assert upserted_doc_ids == ["rss_article:ok-1"]
+    assert upserted_ids == ["ok-1"]
     assert fake_consumer.commit_calls == 1
     assert fake_consumer.closed is True
 
@@ -63,6 +58,8 @@ def test_consumer_does_not_commit_when_upsert_fails(monkeypatch) -> None:
     failures: list[str] = []
 
     monkeypatch.setattr(consumer, "KafkaConsumer", lambda *args, **kwargs: fake_consumer)
+    monkeypatch.setattr(consumer, "validate_consumer_config", lambda *_: None)
+    monkeypatch.setattr(consumer, "validate_raw_db_config", lambda *_: None)
 
     def _raise_on_upsert(_doc):
         raise RuntimeError("db unavailable")
