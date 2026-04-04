@@ -119,12 +119,36 @@ def _text_env(name: str, default: str | None = None) -> str | None:
     return value if value else default
 
 
+def _normalize_bootstrap_servers(raw_value: str) -> str:
+    """
+    Нормализует bootstrap servers для локального запуска.
+
+    На Windows/WSL `localhost` иногда резолвится в IPv6 (`::1`), а Docker-порт
+    Kafka проброшен только на IPv4. В результате kafka-python получает
+    NoBrokersAvailable. Замена `localhost` -> `127.0.0.1` устраняет этот класс
+    ошибок и не затрагивает контейнерные адреса (`kafka:29092`) или внешние
+    хосты.
+    """
+    normalized: list[str] = []
+    for server in raw_value.split(","):
+        item = server.strip()
+        if not item:
+            continue
+        if item.startswith("localhost:"):
+            item = item.replace("localhost:", "127.0.0.1:", 1)
+        normalized.append(item)
+    return ",".join(normalized)
+
+
 def load_config() -> AppConfig:
     legacy_kafka_topic = _text_env("KAFKA_TOPIC")
     kafka_raw_topic = _text_env("KAFKA_RAW_TOPIC", legacy_kafka_topic or "raw.documents") or "raw.documents"
+    kafka_bootstrap_servers = _normalize_bootstrap_servers(
+        _text_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092") or "localhost:9092",
+    )
 
     return AppConfig(
-        kafka_bootstrap_servers=_text_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092") or "localhost:9092",
+        kafka_bootstrap_servers=kafka_bootstrap_servers,
         kafka_topic=kafka_raw_topic,
         kafka_raw_topic=kafka_raw_topic,
         kafka_preprocessed_topic=(
