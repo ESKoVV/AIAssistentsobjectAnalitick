@@ -1,14 +1,14 @@
 import json
 import os
-import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
 from dotenv import load_dotenv
 
+from id_builders import build_portal_appeal_doc_id
 from kafka_producer import send_document
 from schema import MediaType, NormalizedDocument, SourceType
 
@@ -124,33 +124,29 @@ class MockLocalFilePortalLoader(PortalAppealLoader):
 def parse_datetime_or_now(value: Any) -> datetime:
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
     if isinstance(value, str) and value.strip():
         raw = value.strip().replace("Z", "+00:00")
         try:
             parsed = datetime.fromisoformat(raw)
             if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=UTC)
-            return parsed.astimezone(UTC)
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
         except ValueError:
             pass
 
-    return datetime.now(UTC)
-
-
-def stable_doc_id(source_type: SourceType, source_id: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source_type.value}:{source_id}"))
+    return datetime.now(timezone.utc)
 
 
 def normalize_portal_appeal(appeal: RawPortalAppeal) -> NormalizedDocument:
     """Нормализует обращение гражданина в единый контракт документа."""
 
-    collected_at = datetime.now(UTC)
+    collected_at = datetime.now(timezone.utc)
 
     return NormalizedDocument(
-        doc_id=stable_doc_id(SourceType.PORTAL_APPEAL, appeal.appeal_id),
+        doc_id=build_portal_appeal_doc_id(appeal.appeal_id),
         source_type=SourceType.PORTAL_APPEAL,
         source_id=appeal.appeal_id,
         parent_id=None,

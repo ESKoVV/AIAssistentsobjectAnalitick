@@ -1,12 +1,8 @@
-import uuid
 from datetime import datetime, timezone
 
 from region_extractor import extract_geo, extract_region_hint
+from id_builders import build_vk_comment_doc_id, build_vk_post_doc_id
 from schema import MediaType, NormalizedDocument, SourceType
-
-
-def _stable_doc_id(source_type: SourceType, source_id: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source_type.value}:{source_id}"))
 
 
 def normalize_vk_post(raw_post: dict) -> NormalizedDocument:
@@ -36,10 +32,12 @@ def normalize_vk_post(raw_post: dict) -> NormalizedDocument:
     text_for_region = "\n".join(part for part in (text, group_name) if part)
     region_hint = extract_region_hint(text_for_region, raw_post)
 
+    source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
+
     return NormalizedDocument(
-        doc_id=str(uuid.uuid4()),
+        doc_id=build_vk_post_doc_id(source_id),
         source_type=SourceType.VK_POST,
-        source_id=f"{raw_post['owner_id']}_{raw_post['id']}",
+        source_id=source_id,
         parent_id=None,
         text=text,
         media_type=media_type,
@@ -72,10 +70,10 @@ def normalize_vk_comment(raw_comment: dict, parent_post: dict) -> NormalizedDocu
     geo_lat, geo_lon = extract_geo(raw_comment)
 
     return NormalizedDocument(
-        doc_id=_stable_doc_id(SourceType.VK_COMMENT, source_id),
+        doc_id=build_vk_comment_doc_id(source_id),
         source_type=SourceType.VK_COMMENT,
         source_id=source_id,
-        parent_id=parent_source_id,
+        parent_id=build_vk_post_doc_id(parent_source_id),
         text=text,
         media_type=MediaType.TEXT,
         created_at=datetime.fromtimestamp(raw_comment["date"], timezone.utc),
