@@ -1,13 +1,9 @@
-import os
-from dotenv import load_dotenv
 import psycopg
 
-load_dotenv()
+from config import load_config, validate_db_config
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL не найден в .env")
+CONFIG = load_config()
+validate_db_config(CONFIG)
 
 sql = """
 CREATE TABLE IF NOT EXISTS normalized_documents (
@@ -71,7 +67,7 @@ CREATE INDEX IF NOT EXISTS idx_document_fingerprints_cluster_id
     ON document_fingerprints(cluster_id);
 """
 
-with psycopg.connect(DATABASE_URL) as conn:
+with psycopg.connect(CONFIG.database_url) as conn:
     with conn.cursor() as cur:
         cur.execute(sql)
     conn.commit()

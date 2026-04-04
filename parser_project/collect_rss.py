@@ -1,21 +1,15 @@
 import json
-import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
-from dotenv import load_dotenv
-
+from config import load_config, validate_rss_config
 from id_builders import build_rss_article_doc_id
 from region_extractor import extract_geo, extract_region_hint
 from schema import MediaType, NormalizedDocument, SourceType
 
-load_dotenv()
-
-RSS_FEEDS = os.getenv("RSS_FEEDS", "")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
-DAYS_BACK = int(os.getenv("DAYS_BACK", "7"))
+CONFIG = load_config()
 
 
 def _cutoff_datetime(days_back: int) -> datetime:
@@ -124,18 +118,17 @@ def save_document_jsonl(path: str, doc: NormalizedDocument) -> None:
 
 
 def main() -> None:
-    if not RSS_FEEDS.strip():
-        raise ValueError("Не найден RSS_FEEDS в .env")
-    if DAYS_BACK < 0:
-        raise ValueError("DAYS_BACK должен быть >= 0")
-
-    feed_urls = [x.strip() for x in RSS_FEEDS.split(",") if x.strip()]
-    cutoff_dt = _cutoff_datetime(DAYS_BACK)
+    validate_rss_config(CONFIG)
+    feed_urls = CONFIG.rss_feeds
+    cutoff_dt = _cutoff_datetime(CONFIG.days_back)
 
     print("RSS-ленты для обхода:")
     for feed_url in feed_urls:
         print(f" - {feed_url}")
-    print(f"Фильтрация по created_at: только за последние {DAYS_BACK} дней (cutoff={cutoff_dt.isoformat()})")
+    print(
+        f"Фильтрация по created_at: только за последние {CONFIG.days_back} дней "
+        f"(cutoff={cutoff_dt.isoformat()})"
+    )
     print("-" * 80)
 
     total_sent = 0
@@ -165,7 +158,7 @@ def main() -> None:
                     doc = normalize_rss_entry(feed_url, entry)
                     from kafka_producer import send_document
 
-                    send_document(KAFKA_TOPIC, doc.model_dump())
+                    send_document(CONFIG.kafka_topic, doc.model_dump())
                     save_document_jsonl("documents.jsonl", doc)
 
                     short_view = doc.model_dump()

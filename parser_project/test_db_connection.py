@@ -1,12 +1,11 @@
-import os
-from dotenv import load_dotenv
 import psycopg
 
-load_dotenv()
+from config import load_config, validate_db_config
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+CONFIG = load_config()
+validate_db_config(CONFIG)
 
-with psycopg.connect(DATABASE_URL) as conn:
+with psycopg.connect(CONFIG.database_url) as conn:
     with conn.cursor() as cur:
         cur.execute("SELECT current_database(), current_user, inet_server_addr(), inet_server_port();")
         print(cur.fetchone())

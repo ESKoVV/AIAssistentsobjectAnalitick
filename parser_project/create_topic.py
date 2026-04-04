@@ -1,32 +1,28 @@
-import os
-
-from dotenv import load_dotenv
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import TopicAlreadyExistsError
 
-load_dotenv()
+from config import load_config
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "raw.documents")
+CONFIG = load_config()
 
 
 def main():
     admin_client = KafkaAdminClient(
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        bootstrap_servers=CONFIG.kafka_bootstrap_servers,
         client_id="topic-creator",
     )
 
     topic = NewTopic(
-        name=KAFKA_TOPIC,
+        name=CONFIG.kafka_topic,
         num_partitions=1,
         replication_factor=1,
     )
 
     try:
         admin_client.create_topics(new_topics=[topic], validate_only=False)
-        print(f"Топик создан: {KAFKA_TOPIC}")
+        print(f"Топик создан: {CONFIG.kafka_topic}")
     except TopicAlreadyExistsError:
-        print(f"Топик уже существует: {KAFKA_TOPIC}")
+        print(f"Топик уже существует: {CONFIG.kafka_topic}")
     finally:
         admin_client.close()
 
