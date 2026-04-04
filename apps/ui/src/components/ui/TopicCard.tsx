@@ -1,30 +1,32 @@
 import { Link } from 'react-router-dom';
-import { TopicItem } from '../../types';
+import { TopItem } from '../../types';
 import { UrgencyIndicator } from './UrgencyIndicator';
 
-export const TopicCard = ({ topic }: { topic: TopicItem }) => (
-  <div className="rounded-lg border border-slate-700 bg-panel p-4">
-    <div className="mb-2 flex items-center justify-between">
-      <p className="font-mono text-2xl">#{topic.rank}</p>
-      <p className="text-sm text-slate-400">Постов: {topic.doc_count}</p>
+export const TopicCard = ({ topic }: { topic: TopItem }) => (
+  <Link to={`/clusters/${topic.cluster_id}`} className="block rounded-lg border border-slate-700 bg-panel p-4 transition hover:border-blue-500">
+    <div className="mb-3 flex items-start justify-between gap-4">
+      <div>
+        <p className="font-mono text-2xl">#{topic.rank}</p>
+        <p className="text-xs text-slate-400">{topic.cluster_id}</p>
+      </div>
+      <div className="text-right text-sm text-slate-300">
+        <p>Упоминаний: {topic.mention_count}</p>
+        <p>Охват: {topic.reach_total.toLocaleString('ru-RU')}</p>
+      </div>
     </div>
-    <h3 className="mb-1 text-lg font-semibold">{topic.title}</h3>
-    <p className="mb-3 text-sm text-slate-300">{topic.summary}</p>
-    <UrgencyIndicator score={topic.urgency_score} />
+    <h3 className="mb-2 text-lg font-semibold">{topic.summary}</h3>
+    <UrgencyIndicator urgency={topic.urgency} reason={topic.urgency_reason} />
     <div className="mt-3 flex flex-wrap gap-1">
-      {topic.tags.map((tag) => (
-        <span key={tag} className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-200">
-          {tag}
+      {topic.key_phrases.slice(0, 5).map((phrase) => (
+        <span key={phrase} className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-200">
+          {phrase}
         </span>
       ))}
     </div>
-    <div className="mt-3 text-sm">
-      Примеры:{' '}
-      {topic.sample_doc_ids.slice(0, 3).map((id) => (
-        <Link key={id} to={`/post/${id}`} className="mr-2 text-blue-400 underline">
-          {id}
-        </Link>
-      ))}
+    <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-400">
+      <span>Регионов: {topic.geo_regions.length}</span>
+      <span>Авторов: {topic.unique_authors}</span>
+      <span>Рост: {topic.growth_rate.toFixed(1)}x</span>
     </div>
-  </div>
+  </Link>
 );

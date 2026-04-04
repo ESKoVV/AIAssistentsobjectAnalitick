@@ -8,76 +8,138 @@ export type SourceType =
   | 'rss_article'
   | 'portal_appeal';
 
-export type TopicTag =
-  | 'СВО'
-  | 'ЖКХ'
-  | 'Транспорт'
-  | 'Медицина'
-  | 'Образование'
-  | 'Безопасность'
-  | 'Экология'
-  | 'Экономика'
-  | 'АПК'
-  | 'Цифровизация'
-  | 'Культура'
-  | 'Спорт';
+export type UrgencyLevel = 'low' | 'medium' | 'high' | 'critical';
 
-export interface NormalizedDocument {
+export interface ScoreBreakdown {
+  volume: number;
+  dynamics: number;
+  sentiment: number;
+  reach: number;
+  geo: number;
+  source: number;
+}
+
+export interface SourceSummary {
+  source_type: string;
+  count: number;
+}
+
+export interface SamplePost {
   doc_id: string;
-  source_type: SourceType;
+  text_preview: string;
+  source_type: string;
+  created_at: string;
+  reach: number;
+  source_url: string | null;
+}
+
+export interface TopItem {
+  rank: number;
+  cluster_id: string;
+  summary: string;
+  key_phrases: string[];
+  urgency: UrgencyLevel;
+  urgency_reason: string;
+  mention_count: number;
+  unique_authors: number;
+  reach_total: number;
+  growth_rate: number;
+  is_new: boolean;
+  is_growing: boolean;
+  geo_regions: string[];
+  sources: SourceSummary[];
+  sample_posts: SamplePost[];
+  score: number;
+  score_breakdown: ScoreBreakdown;
+}
+
+export interface TopResponse {
+  computed_at: string;
+  period_start: string;
+  period_end: string;
+  total_clusters: number;
+  items: TopItem[];
+}
+
+export interface TimelinePoint {
+  hour: string;
+  count: number;
+  reach: number;
+  growth_rate: number;
+}
+
+export interface TimelineResponse {
+  cluster_id: string;
+  points: TimelinePoint[];
+}
+
+export interface ClusterDetailResponse extends TopItem {
+  sample_doc_ids: string[];
+  all_regions: string[];
+  timeline: TimelinePoint[];
+}
+
+export interface ClusterDocument {
+  doc_id: string;
   source_id: string;
-  parent_id: string | null;
+  source_type: string;
+  author_id: string;
   text: string;
-  media_type: 'text' | 'photo' | 'video' | 'link';
+  text_preview: string;
   created_at: string;
   collected_at: string;
-  author_id: string;
-  is_official: boolean;
   reach: number;
   likes: number;
   reposts: number;
   comments_count: number;
-  region_hint: string | null;
-  geo_lat: number | null;
-  geo_lon: number | null;
-  raw_payload: object;
+  is_official: boolean;
+  parent_id: string | null;
+  region: string | null;
+  source_url: string | null;
+  raw_payload: Record<string, unknown>;
 }
 
-export interface DocumentsResponse {
-  items: NormalizedDocument[];
-  total: number;
+export interface ClusterDocumentsResponse {
+  cluster_id: string;
   page: number;
-  limit: number;
+  page_size: number;
+  total: number;
+  items: ClusterDocument[];
 }
 
-export interface TopicItem {
-  rank: number;
-  title: string;
-  summary: string;
-  doc_count: number;
-  tags: TopicTag[];
-  urgency_score: number;
-  sample_doc_ids: string[];
+export interface HistoryBucket {
+  bucket_start: string;
+  bucket_end: string;
+  computed_at: string;
+  items: TopItem[];
 }
 
-export interface TopicsResponse {
-  items: TopicItem[];
+export interface HistoryResponse {
+  from_dt: string;
+  to_dt: string;
+  granularity: 'hourly' | '6h' | 'daily';
+  buckets: HistoryBucket[];
 }
 
-export interface StatsResponse {
-  total_docs: number;
-  docs_last_24h: number;
-  by_source: { source_type: SourceType; count: number }[];
-  by_tag: { tag: TopicTag; count: number; avg_reach: number; official_share: number }[];
-  by_region: { region: string; count: number }[];
-  timeline: { date: string; count: number }[];
+export interface HealthResponse {
+  status: 'ok' | 'degraded' | 'down';
+  last_ranking_at: string;
+  ranking_age_minutes: number;
+  documents_last_hour: number;
+  pipeline_status: Record<string, string>;
 }
 
-export interface DocumentFilters {
-  page?: number;
-  limit?: number;
+export interface TopFilters {
   region?: string;
-  date_from?: string;
-  date_to?: string;
-  tags?: TopicTag[];
+  source?: string;
+  period?: '6h' | '24h' | '72h';
+  limit?: number;
+  as_of?: string;
+}
+
+export interface ClusterDocumentsFilters {
+  page?: number;
+  page_size?: number;
+  source_type?: string;
+  region?: string;
 }

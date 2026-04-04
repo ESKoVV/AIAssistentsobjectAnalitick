@@ -6,6 +6,7 @@ from pathlib import Path
 
 from apps.ml.embeddings.schema import EmbeddedDocument
 from apps.ml.clustering.schema import Cluster, ClusterDocumentRecord
+from apps.ml.ranking.schema import RankedCluster, ScoreBreakdown
 from apps.ml.summarization.schema import ClusterDescription, StoredClusterDescription, SummarizationDocumentRecord
 from apps.preprocessing.enrichment import EnrichedDocument
 from apps.preprocessing.filtering.schema import FilterStatus
@@ -220,6 +221,79 @@ def build_stored_cluster_description(
         ),
         needs_review=needs_review,
         cluster_size_at_generation=cluster_size_at_generation,
+    )
+
+
+def build_score_breakdown(
+    *,
+    volume_score: float = 0.8,
+    dynamics_score: float = 0.7,
+    sentiment_score: float = 0.9,
+    reach_score: float = 0.6,
+    geo_score: float = 0.5,
+    source_score: float = 0.4,
+    weights: dict[str, float] | None = None,
+) -> ScoreBreakdown:
+    return ScoreBreakdown(
+        volume_score=volume_score,
+        dynamics_score=dynamics_score,
+        sentiment_score=sentiment_score,
+        reach_score=reach_score,
+        geo_score=geo_score,
+        source_score=source_score,
+        weights=weights
+        or {
+            "volume": 0.25,
+            "dynamics": 0.25,
+            "sentiment": 0.20,
+            "reach": 0.15,
+            "geo": 0.10,
+            "source": 0.05,
+        },
+    )
+
+
+def build_ranked_cluster(
+    *,
+    cluster_id: str = "cluster-1",
+    rank: int = 1,
+    score: float = 0.82,
+    score_breakdown: ScoreBreakdown | None = None,
+    summary: str = "Жители обсуждают перебои с горячей водой и сроки восстановления подачи.",
+    key_phrases: list[str] | None = None,
+    period_start: datetime | None = None,
+    period_end: datetime | None = None,
+    size: int = 80,
+    growth_rate: float = 3.2,
+    reach_total: int = 100000,
+    geo_regions: list[str] | None = None,
+    unique_sources: int = 3,
+    unique_authors: int = 12,
+    sentiment_score: float = -0.8,
+    is_new: bool = True,
+    is_growing: bool = True,
+    sample_doc_ids: list[str] | None = None,
+) -> RankedCluster:
+    return RankedCluster(
+        cluster_id=cluster_id,
+        rank=rank,
+        score=score,
+        score_breakdown=score_breakdown or build_score_breakdown(),
+        summary=summary,
+        key_phrases=key_phrases or ["нет горячей воды", "сроки восстановления подачи"],
+        period_start=period_start or datetime(2026, 4, 4, 8, 0, tzinfo=UTC),
+        period_end=period_end or datetime(2026, 4, 4, 12, 0, tzinfo=UTC),
+        size=size,
+        mention_count=size,
+        growth_rate=growth_rate,
+        reach_total=reach_total,
+        geo_regions=geo_regions or ["volgograd-oblast", "astrakhan-oblast"],
+        unique_sources=unique_sources,
+        unique_authors=unique_authors,
+        sentiment_score=sentiment_score,
+        is_new=is_new,
+        is_growing=is_growing,
+        sample_doc_ids=sample_doc_ids or ["doc-1", "doc-2", "doc-3"],
     )
 
 

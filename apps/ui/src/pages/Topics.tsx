@@ -1,39 +1,46 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ErrorState } from '../components/ui/ErrorState';
 import { LoadingState } from '../components/ui/LoadingState';
 import { TopicCard } from '../components/ui/TopicCard';
-import { useTopics } from '../hooks/useTopics';
+import { useTop } from '../hooks/useTop';
 
-const ranges = [
-  { label: 'Сегодня', days: 1 },
-  { label: '7 дней', days: 7 },
-  { label: '30 дней', days: 30 }
+const periods = [
+  { label: '6 часов', value: '6h' as const },
+  { label: '24 часа', value: '24h' as const },
+  { label: '72 часа', value: '72h' as const }
 ];
 
 export const Topics = () => {
-  const [period, setPeriod] = useState(7);
-  const now = new Date();
-  const dateFrom = new Date(now.getTime() - period * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const { data, isLoading, error } = useTopics({ limit: 10, date_from: dateFrom, date_to: now.toISOString().slice(0, 10) });
+  const [period, setPeriod] = useState<'6h' | '24h' | '72h'>('24h');
+  const region = typeof window !== 'undefined' ? window.localStorage.getItem('selectedRegion') ?? '' : '';
+  const filters = useMemo(() => ({ period, limit: 10, region: region || undefined }), [period, region]);
+  const { data, isLoading, error } = useTop(filters);
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-semibold">Топ тем</h2>
-      <div className="flex gap-2">
-        {ranges.map((r) => (
-          <button
-            key={r.days}
-            onClick={() => setPeriod(r.days)}
-            className={`rounded px-3 py-1 ${period === r.days ? 'bg-blue-600' : 'bg-slate-700'}`}
-          >
-            {r.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold">Топ тем</h2>
+          <p className="text-sm text-slate-400">
+            {region ? `Фильтр по региону: ${region}` : 'Без регионального фильтра'}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {periods.map((item) => (
+            <button
+              key={item.value}
+              onClick={() => setPeriod(item.value)}
+              className={`rounded px-3 py-1 text-sm ${period === item.value ? 'bg-blue-600' : 'bg-slate-700'}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading && <LoadingState />}
       {error && <ErrorState message={(error as Error).message} />}
-      <div className="grid gap-3">{data?.items.map((topic) => <TopicCard key={topic.rank} topic={topic} />)}</div>
+      <div className="grid gap-3">{data?.items.map((topic) => <TopicCard key={topic.cluster_id} topic={topic} />)}</div>
     </div>
   );
 };

@@ -1,26 +1,37 @@
-# Public API (local)
+# Public API
 
-Локальный read-only API для выгрузки новостей из PostgreSQL в UI.
+Versioned public API for top-ranked clusters, history, verification documents, and health.
 
-## Запуск
+## Run
 
 ```bash
-cd /workspace/AIAssistentsobjectAnalitick
-python apps/api/public/server.py
+python -m uvicorn apps.api.public.server:app --host 0.0.0.0 --port 8000
 ```
 
-Сервер поднимается на `http://localhost:8000` по умолчанию.
+Swagger is available at `http://localhost:8000/api/docs`.
 
-## Переменные окружения
+## Main Environment Variables
 
-- `DATABASE_URL` — строка подключения к PostgreSQL (обязательная).
-- `API_HOST` — хост API (по умолчанию `0.0.0.0`).
-- `API_PORT` — порт API (по умолчанию `8000`).
+- `DATABASE_URL` or `API_DATABASE_URL`
+- `API_HOST`
+- `API_PORT`
+- `API_TOP_CONFIG_PATH`
+- `API_REDIS_DSN`
+- `API_KAFKA_BOOTSTRAP_SERVERS`
+- `API_RANKINGS_UPDATED_TOPIC`
+- `API_AUTH_DISABLED`
+- `API_JWT_ISSUER`
+- `API_JWT_AUDIENCE`
+- `API_JWKS_URL`
 
-## Методы
+## Main Endpoints
 
-- `GET /api/documents?page=1&limit=20&region=...&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
-- `GET /api/documents/{doc_id}`
-- `GET /api/regions`
+- `GET /api/v1/top`
+- `GET /api/v1/top/{cluster_id}`
+- `GET /api/v1/top/{cluster_id}/documents`
+- `GET /api/v1/top/{cluster_id}/timeline`
+- `GET /api/v1/history`
+- `GET /api/v1/health`
+- `GET /metrics`
 
-Все методы read-only.
+Every response includes `X-API-Version` and `X-Request-ID`.
