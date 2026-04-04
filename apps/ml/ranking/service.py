@@ -51,6 +51,8 @@ class _WindowClusterAggregate:
     summary: str
     key_phrases: list[str]
     sentiment_score: float
+    category: str
+    category_label: str
     sample_doc_ids: list[str]
     sources: list[RankedSourceSummary]
     sample_posts: list[RankedSamplePost]
@@ -262,6 +264,8 @@ def rank_clusters(
                 sources=list(aggregate.sources),
                 sample_posts=list(aggregate.sample_posts),
                 timeline=list(aggregate.timeline),
+                category=aggregate.category,
+                category_label=aggregate.category_label,
             ),
         )
 
@@ -477,6 +481,7 @@ def _build_window_aggregate(
         sample_doc_ids=description.description.sample_doc_ids,
     )
     timeline = _build_timeline(timeline_documents, now=now)
+    category, category_label = _select_cluster_category(sorted_docs)
     view = _WindowClusterView(
         cluster_id=cluster.cluster_id,
         size=len(sorted_docs),
@@ -496,11 +501,29 @@ def _build_window_aggregate(
         summary=description.description.summary,
         key_phrases=list(description.description.key_phrases),
         sentiment_score=_weighted_sentiment(sorted_docs),
+        category=category,
+        category_label=category_label,
         sample_doc_ids=sample_doc_ids,
         sources=sources,
         sample_posts=sample_posts,
         timeline=timeline,
     )
+
+
+def _select_cluster_category(documents: Sequence[RankingDocumentRecord]) -> tuple[str, str]:
+    counts: dict[str, float] = defaultdict(float)
+    labels: dict[str, str] = {}
+    for document in documents:
+        category = str(document.category or "other")
+        label = str(document.category_label or "Прочее")
+        counts[category] += _document_weight(document)
+        labels.setdefault(category, label)
+
+    if not counts:
+        return "other", "Прочее"
+
+    category = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    return category, labels.get(category, "Прочее")
 
 
 def _build_source_summaries(documents: Sequence[RankingDocumentRecord]) -> list[RankedSourceSummary]:

@@ -1,7 +1,8 @@
+import { GeoMap } from '../components/charts/GeoMap';
 import { TimelineLineChart } from '../components/charts/TimelineLineChart';
 import { ErrorState } from '../components/ui/ErrorState';
 import { LoadingState } from '../components/ui/LoadingState';
-import { useHealth, useHistory } from '../hooks/useTop';
+import { useHealth, useHistory, useTopGeo } from '../hooks/useTop';
 
 export const Analytics = () => {
   const historyQuery = useHistory({
@@ -10,14 +11,17 @@ export const Analytics = () => {
     granularity: 'daily'
   });
   const healthQuery = useHealth();
+  const geoQuery = useTopGeo({ period: '24h', limit: 10 });
 
-  if (historyQuery.isLoading || healthQuery.isLoading) return <LoadingState />;
-  if (historyQuery.error || healthQuery.error) return <ErrorState message="Не удалось загрузить аналитику" />;
+  if (historyQuery.isLoading || healthQuery.isLoading || geoQuery.isLoading) return <LoadingState />;
+  if (historyQuery.error || healthQuery.error || geoQuery.error)
+    return <ErrorState message="Не удалось загрузить аналитику" />;
 
   const history = historyQuery.data;
   const health = healthQuery.data;
+  const geo = geoQuery.data;
 
-  if (!history || !health) return null;
+  if (!history || !health || !geo) return null;
 
   const leaderScoreData = history.buckets.map((bucket) => ({
     date: new Date(bucket.bucket_start).toLocaleDateString('ru-RU', { timeZone: 'UTC' }),
@@ -30,6 +34,8 @@ export const Analytics = () => {
         <h2 className="text-2xl font-semibold">Аналитика приоритетов</h2>
         <p className="text-sm text-slate-400">История изменения лидирующих тем по дневным срезам.</p>
       </div>
+
+      <GeoMap clusters={geo.clusters} />
 
       <TimelineLineChart data={leaderScoreData} />
 

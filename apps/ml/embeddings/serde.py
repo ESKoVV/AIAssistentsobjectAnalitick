@@ -60,6 +60,10 @@ def deserialize_enriched_document(payload: Mapping[str, Any]) -> EnrichedDocumen
         geo_evidence=tuple(str(item) for item in normalized.get("geo_evidence", ())),
         engagement=int(normalized["engagement"]),
         metadata_version=str(normalized["metadata_version"]),
+        category=str(normalized.get("category", "other")),
+        category_label=str(normalized.get("category_label", "Прочее")),
+        category_confidence=float(normalized.get("category_confidence", 0.0)),
+        secondary_category=_optional_str(normalized.get("secondary_category")),
     )
 
 

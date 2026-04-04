@@ -48,6 +48,10 @@ EXPECTED_FIELDS = {
     "geo_evidence",
     "engagement",
     "metadata_version",
+    "category",
+    "category_label",
+    "category_confidence",
+    "secondary_category",
 }
 
 
@@ -58,3 +62,4 @@ def test_enriched_document_preserves_stage_fields_and_adds_metadata_fields() -> 
     assert set(asdict(document).keys()) == EXPECTED_FIELDS
     assert document.engagement == document.likes + document.reposts + document.comments_count
     assert document.metadata_version == "meta-v1"
+    assert document.category == "housing"

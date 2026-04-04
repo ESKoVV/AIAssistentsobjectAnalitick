@@ -5,6 +5,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 from config import load_config, validate_rss_config
+from kafka_producer import flush, send_document
 from schema import MediaType, RawMessage, SourceType
 
 CONFIG = load_config()
@@ -148,7 +149,6 @@ def main() -> None:
                         continue
 
                     doc = build_rss_raw_message(feed_url, entry)
-                    from kafka_producer import send_document
 
                     send_document(CONFIG.kafka_topic, doc.model_dump())
                     save_document_jsonl("documents.jsonl", doc)
@@ -174,6 +174,7 @@ def main() -> None:
             print(f"[{feed_url}] Ошибка обработки RSS-ленты: {feed_error}")
             print("-" * 80)
 
+    flush()
     print(f"Всего отправлено в Kafka: {total_sent}")
 
 

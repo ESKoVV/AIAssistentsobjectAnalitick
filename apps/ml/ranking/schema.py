@@ -53,6 +53,8 @@ class RankingDocumentRecord:
     raw_payload: dict[str, Any]
     quality_weight: float = 1.0
     sentiment_score: float | None = None
+    category: str = "other"
+    category_label: str = "Прочее"
 
 
 @dataclass(slots=True)
@@ -79,6 +81,8 @@ class RankedCluster:
     sources: list[RankedSourceSummary] = field(default_factory=list)
     sample_posts: list[RankedSamplePost] = field(default_factory=list)
     timeline: list[RankedTimelinePoint] = field(default_factory=list)
+    category: str = "other"
+    category_label: str = "Прочее"
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +111,8 @@ class StoredRankingItem:
     unique_sources: int
     is_new: bool
     is_growing: bool
+    category: str = "other"
+    category_label: str = "Прочее"
 
 
 @dataclass(frozen=True, slots=True)

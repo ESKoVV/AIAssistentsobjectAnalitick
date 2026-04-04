@@ -2,6 +2,7 @@ import {
   ClusterDetailResponse,
   ClusterDocumentsFilters,
   ClusterDocumentsResponse,
+  GeoResponse,
   HealthResponse,
   HistoryResponse,
   TimelineResponse,
@@ -10,11 +11,24 @@ import {
 } from '../types';
 import { fetchJson, useMocks } from './client';
 
+const mockGeoPointsByRegion: Record<string, { lat: number; lon: number }> = {
+  'Ростов-на-Дону': { lat: 47.2357, lon: 39.7015 },
+  Таганрог: { lat: 47.2086, lon: 38.9369 },
+  Батайск: { lat: 47.1398, lon: 39.7518 },
+  Аксай: { lat: 47.2676, lon: 39.8756 },
+  Азов: { lat: 47.1078, lon: 39.4165 },
+  Волгоград: { lat: 48.7071, lon: 44.5169 },
+  Волжский: { lat: 48.7858, lon: 44.7797 },
+  Камышин: { lat: 50.0827, lon: 45.4074 }
+};
+
 const mockTopItems: TopResponse['items'] = [
   {
     rank: 1,
     cluster_id: 'cluster-water-1',
     summary: 'Жители массово жалуются на перебои с горячей водой и затянутые сроки восстановления подачи.',
+    category: 'housing',
+    category_label: 'ЖКХ',
     key_phrases: ['нет горячей воды', 'аварийные работы', 'сроки восстановления', 'жалобы жителей', 'отключение'],
     urgency: 'critical',
     urgency_reason: 'рост в 5.6x за 6 часов',
@@ -62,6 +76,8 @@ const mockTopItems: TopResponse['items'] = [
     rank: 2,
     cluster_id: 'cluster-transport-2',
     summary: 'В соцсетях и медиа обсуждаются массовые задержки общественного транспорта в утренний час пик.',
+    category: 'roads',
+    category_label: 'Дороги и транспорт',
     key_phrases: ['задержки автобусов', 'час пик', 'маршруты', 'переполненные остановки', 'транспорт'],
     urgency: 'high',
     urgency_reason: 'высокий суммарный балл 0.78',
@@ -100,6 +116,8 @@ const mockTopItems: TopResponse['items'] = [
     rank: 3,
     cluster_id: 'cluster-health-3',
     summary: 'Появился устойчивый поток сообщений о нехватке записи к профильным врачам в поликлиниках.',
+    category: 'health',
+    category_label: 'Здравоохранение',
     key_phrases: ['нет записи', 'поликлиника', 'врач', 'талонов нет', 'ожидание'],
     urgency: 'medium',
     urgency_reason: 'устойчивое упоминание',
@@ -139,7 +157,8 @@ const mockTopItems: TopResponse['items'] = [
 const mockTopResponse = (filters: TopFilters = {}): TopResponse => {
   const filteredItems = mockTopItems
     .filter((item) => !filters.region || item.geo_regions.includes(filters.region))
-    .filter((item) => !filters.source || item.sources.some((entry) => entry.source_type === filters.source));
+    .filter((item) => !filters.source || item.sources.some((entry) => entry.source_type === filters.source))
+    .filter((item) => !filters.category || item.category === filters.category);
   const items = filteredItems
     .slice(0, filters.limit ?? 10)
     .map((item, index) => ({ ...item, rank: index + 1 }));
@@ -242,11 +261,43 @@ const mockHealthResponse: HealthResponse = {
   }
 };
 
+const mockGeoResponse = (filters: TopFilters = {}): GeoResponse => {
+  const top = mockTopResponse(filters);
+  return {
+    clusters: top.items.map((item) => ({
+      cluster_id: item.cluster_id,
+      summary: item.summary,
+      category_label: item.category_label,
+      rank: item.rank,
+      geo_regions: item.geo_regions,
+      mention_count: item.mention_count,
+      urgency: item.urgency,
+      geo_points: item.geo_regions.flatMap((region) => {
+        const point = mockGeoPointsByRegion[region];
+        return point ? [{ region, ...point }] : [];
+      })
+    }))
+  };
+};
+
 export const getTop = async (filters: TopFilters = {}): Promise<TopResponse> => {
   if (useMocks) return mockTopResponse(filters);
   return fetchJson<TopResponse>('/api/v1/top', {
     region: filters.region,
     source: filters.source,
+    category: filters.category,
+    period: filters.period,
+    limit: filters.limit,
+    as_of: filters.as_of
+  });
+};
+
+export const getTopGeo = async (filters: TopFilters = {}): Promise<GeoResponse> => {
+  if (useMocks) return mockGeoResponse(filters);
+  return fetchJson<GeoResponse>('/api/v1/top/geo', {
+    region: filters.region,
+    source: filters.source,
+    category: filters.category,
     period: filters.period,
     limit: filters.limit,
     as_of: filters.as_of

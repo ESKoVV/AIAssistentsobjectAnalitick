@@ -4,6 +4,7 @@ from dataclasses import asdict
 from enum import Enum
 from typing import Any, Iterable, Mapping, Sequence
 
+from apps.ml.classification import TaxonomyConfig, classify_document, load_taxonomy_config
 from apps.preprocessing.geo_enrichment import GeoEnrichedDocument
 
 from .schema import EnrichedDocument
@@ -17,10 +18,15 @@ def enrich_metadata(
     source_config: Mapping[str, Any] | None = None,
     *,
     official_registry: Iterable[tuple[str, str]] | None = None,
+    taxonomy_config: TaxonomyConfig | None = None,
     metadata_version: str = DEFAULT_METADATA_VERSION,
 ) -> EnrichedDocument:
     config = dict(source_config or {})
     payload = asdict(document)
+    classification = classify_document(
+        document.normalized_text or document.text,
+        config=taxonomy_config or load_taxonomy_config(),
+    )
     payload["is_official"] = _resolve_official_status(
         document=document,
         source_config=config,
@@ -30,6 +36,10 @@ def enrich_metadata(
         **payload,
         engagement=max(0, int(document.likes) + int(document.reposts) + int(document.comments_count)),
         metadata_version=metadata_version,
+        category=classification.category,
+        category_label=classification.category_label,
+        category_confidence=classification.confidence,
+        secondary_category=classification.secondary_category,
     )
 
 

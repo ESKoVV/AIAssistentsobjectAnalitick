@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from config import load_config, validate_max_config
-from kafka_producer import send_document
+from kafka_producer import flush, send_document
 from schema import MediaType, RawMessage, SourceType
 
 CONFIG = load_config()
@@ -246,6 +246,7 @@ def main() -> None:
     client: MaxClient = MockMaxClient(CONFIG.max_mock_data_path)
 
     total = process_max_messages(client, CONFIG.kafka_topic)
+    flush()
     logger.info("MAX ingest завершён, отправлено сообщений=%d", total)
 
 

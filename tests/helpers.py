@@ -61,6 +61,10 @@ def build_enriched_document(
         geo_evidence=("matched_toponym:Волгоград",),
         engagement=21,
         metadata_version="meta-v1",
+        category="housing",
+        category_label="ЖКХ",
+        category_confidence=0.75,
+        secondary_category=None,
     )
 
 
@@ -275,6 +279,8 @@ def build_ranked_cluster(
     is_new: bool = True,
     is_growing: bool = True,
     sample_doc_ids: list[str] | None = None,
+    category: str = "housing",
+    category_label: str = "ЖКХ",
 ) -> RankedCluster:
     return RankedCluster(
         cluster_id=cluster_id,
@@ -296,6 +302,8 @@ def build_ranked_cluster(
         is_new=is_new,
         is_growing=is_growing,
         sample_doc_ids=sample_doc_ids or ["doc-1", "doc-2", "doc-3"],
+        category=category,
+        category_label=category_label,
     )
 
 

@@ -13,3 +13,18 @@ body {
 #root {
   min-height: 100vh;
 }
+
+.leaflet-container {
+  background: #0f172a;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.82) !important;
+  color: #cbd5e1;
+}

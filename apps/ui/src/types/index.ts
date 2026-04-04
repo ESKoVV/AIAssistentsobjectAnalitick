@@ -37,6 +37,8 @@ export interface TopItem {
   rank: number;
   cluster_id: string;
   summary: string;
+  category: string;
+  category_label: string;
   key_phrases: string[];
   urgency: UrgencyLevel;
   urgency_reason: string;
@@ -59,6 +61,27 @@ export interface TopResponse {
   period_end: string;
   total_clusters: number;
   items: TopItem[];
+}
+
+export interface GeoPoint {
+  region: string;
+  lat: number;
+  lon: number;
+}
+
+export interface GeoCluster {
+  cluster_id: string;
+  summary: string;
+  category_label: string;
+  rank: number;
+  geo_regions: string[];
+  mention_count: number;
+  urgency: UrgencyLevel;
+  geo_points: GeoPoint[];
+}
+
+export interface GeoResponse {
+  clusters: GeoCluster[];
 }
 
 export interface TimelinePoint {
@@ -132,6 +155,7 @@ export interface HealthResponse {
 export interface TopFilters {
   region?: string;
   source?: string;
+  category?: string;
   period?: '6h' | '24h' | '72h';
   limit?: number;
   as_of?: string;

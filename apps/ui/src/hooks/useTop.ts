@@ -5,7 +5,8 @@ import {
   getClusterTimeline,
   getHealth,
   getHistory,
-  getTop
+  getTop,
+  getTopGeo
 } from '../api/top';
 import { ClusterDocumentsFilters, TopFilters } from '../types';
 
@@ -13,6 +14,12 @@ export const useTop = (filters: TopFilters) =>
   useQuery({
     queryKey: ['top', filters],
     queryFn: () => getTop(filters)
+  });
+
+export const useTopGeo = (filters: TopFilters) =>
+  useQuery({
+    queryKey: ['top-geo', filters],
+    queryFn: () => getTopGeo(filters)
   });
 
 export const useClusterDetail = (clusterId?: string) =>

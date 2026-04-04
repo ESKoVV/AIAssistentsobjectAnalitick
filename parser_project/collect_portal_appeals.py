@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from config import _csv_env, load_config, validate_portal_config
-from kafka_producer import send_document
+from kafka_producer import flush, send_document
 from schema import MediaType, RawMessage, SourceType
 
 CONFIG = load_config()
@@ -403,6 +403,7 @@ def main() -> None:
             print(f"[portal={CONFIG.portal_name}] [appeal_id={appeal.appeal_id}] Ошибка обработки: {error}")
             print("-" * 80)
 
+    flush()
     print(f"Всего отправлено в Kafka: {sent}")
 
 

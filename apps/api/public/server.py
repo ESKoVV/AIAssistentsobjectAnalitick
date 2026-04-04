@@ -10,17 +10,19 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from apps.api.schemas.top import (
     APIError,
     ClusterDetailResponse,
     ClusterDocumentsQueryParams,
     ClusterDocumentsResponse,
+    GeoResponse,
     HealthResponse,
     HistoryQueryParams,
     HistoryResponse,
     TimelineResponse,
+    TopExportQueryParams,
     TopQueryParams,
     TopResponse,
 )
@@ -152,6 +154,38 @@ def create_app(config: APIConfig | None = None) -> FastAPI:
         _=Depends(require_access(AccessLevel.VIEWER)),
     ) -> TopResponse:
         response, cache_hit = service.get_top(params)
+        request.state.cache_hit = cache_hit
+        return response
+
+    @router.get("/top/export")
+    async def export_top(
+        request: Request,
+        params: TopExportQueryParams = Depends(),
+        _=Depends(require_access(AccessLevel.VIEWER)),
+    ) -> Response:
+        top_params = TopQueryParams(
+            region=params.region,
+            source=params.source,
+            category=params.category,
+            period=params.period,
+            limit=params.limit,
+            as_of=params.as_of,
+        )
+        payload, media_type, filename, cache_hit = service.export_top(top_params, format=params.format)
+        request.state.cache_hit = cache_hit
+        return Response(
+            content=payload,
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    @router.get("/top/geo", response_model=GeoResponse)
+    async def get_top_geo(
+        request: Request,
+        params: TopQueryParams = Depends(),
+        _=Depends(require_access(AccessLevel.VIEWER)),
+    ) -> GeoResponse:
+        response, cache_hit = service.get_geo(params)
         request.state.cache_hit = cache_hit
         return response
 

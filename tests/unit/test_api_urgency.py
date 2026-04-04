@@ -9,6 +9,8 @@ def build_snapshot_item(**overrides) -> SnapshotItemRecord:
         "rank": 1,
         "score": 0.82,
         "summary": "summary",
+        "category": "housing",
+        "category_label": "ЖКХ",
         "key_phrases": ["phrase"],
         "mention_count": 140,
         "unique_authors": 90,

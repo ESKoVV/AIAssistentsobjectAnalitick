@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS normalized_messages (
     geo_evidence TEXT[] NOT NULL DEFAULT '{}'::text[],
     engagement INTEGER NOT NULL DEFAULT 0,
     metadata_version TEXT NOT NULL DEFAULT 'meta-v1',
+    category TEXT NOT NULL DEFAULT 'other',
+    category_label TEXT NOT NULL DEFAULT 'Прочее',
+    category_confidence DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    secondary_category TEXT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT normalized_messages_source_type_source_id_key UNIQUE (source_type, source_id)

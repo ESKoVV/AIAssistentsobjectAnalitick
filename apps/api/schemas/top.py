@@ -51,6 +51,8 @@ class TopItem(BaseModel):
     rank: int
     cluster_id: str
     summary: str
+    category: str
+    category_label: str
     key_phrases: list[str]
     urgency: UrgencyLevel
     urgency_reason: str
@@ -65,6 +67,9 @@ class TopItem(BaseModel):
     sample_posts: list[SamplePost]
     score: float
     score_breakdown: ScoreBreakdown
+    period_start: datetime
+    period_end: datetime
+    computed_at: datetime
 
 
 class TopResponse(BaseModel):
@@ -73,6 +78,27 @@ class TopResponse(BaseModel):
     period_end: datetime
     total_clusters: int
     items: list[TopItem]
+
+
+class GeoPoint(BaseModel):
+    region: str
+    lat: float
+    lon: float
+
+
+class GeoCluster(BaseModel):
+    cluster_id: str
+    summary: str
+    category_label: str
+    rank: int
+    geo_regions: list[str]
+    mention_count: int
+    urgency: UrgencyLevel
+    geo_points: list[GeoPoint]
+
+
+class GeoResponse(BaseModel):
+    clusters: list[GeoCluster]
 
 
 class TimelinePoint(BaseModel):
@@ -146,9 +172,14 @@ class HealthResponse(BaseModel):
 class TopQueryParams(BaseModel):
     region: str | None = None
     source: str | None = None
+    category: str | None = None
     period: PeriodLiteral = "24h"
     limit: int = Field(default=10, ge=1, le=50)
     as_of: datetime | None = None
+
+
+class TopExportQueryParams(TopQueryParams):
+    format: str
 
 
 class ClusterDocumentsQueryParams(BaseModel):

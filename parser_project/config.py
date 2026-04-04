@@ -24,6 +24,7 @@ class AppConfig:
     kafka_bootstrap_servers: str
     kafka_topic: str
     kafka_raw_topic: str
+    kafka_raw_dlq_topic: str
     kafka_preprocessed_topic: str
     kafka_ml_topic: str
     kafka_ml_results_topic: str
@@ -127,6 +128,7 @@ def load_config() -> AppConfig:
         kafka_bootstrap_servers=_text_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092") or "localhost:9092",
         kafka_topic=kafka_raw_topic,
         kafka_raw_topic=kafka_raw_topic,
+        kafka_raw_dlq_topic=_text_env("KAFKA_RAW_DLQ_TOPIC", f"{kafka_raw_topic}.dlq") or f"{kafka_raw_topic}.dlq",
         kafka_preprocessed_topic=(
             _text_env("KAFKA_PREPROCESSED_TOPIC", "preprocessed.documents") or "preprocessed.documents"
         ),

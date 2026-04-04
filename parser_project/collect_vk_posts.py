@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from config import load_config, validate_vk_config
-from kafka_producer import send_document
+from kafka_producer import flush, send_document
 from normalizers.vk import build_vk_comment_raw_message, build_vk_post_raw_message
 from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
 
@@ -180,6 +180,7 @@ def main():
             print(f"[{domain}] Ошибка: {e}")
             print("-" * 80)
 
+    flush()
     print(f"Всего отправлено в Kafka: {total_sent}")
 
 

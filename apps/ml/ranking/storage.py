@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS ranking_items (
     sentiment_score FLOAT NOT NULL,
     is_new BOOLEAN NOT NULL,
     is_growing BOOLEAN NOT NULL,
+    category TEXT NOT NULL DEFAULT 'other',
+    category_label TEXT NOT NULL DEFAULT 'Прочее',
     PRIMARY KEY (ranking_id, cluster_id)
 )
 """
@@ -68,6 +70,8 @@ ALTER_RANKING_ITEMS_COLUMNS_SQL = (
     "ALTER TABLE ranking_items ADD COLUMN IF NOT EXISTS growth_rate FLOAT NOT NULL DEFAULT 0.0",
     "ALTER TABLE ranking_items ADD COLUMN IF NOT EXISTS geo_regions TEXT[] NOT NULL DEFAULT '{}'",
     "ALTER TABLE ranking_items ADD COLUMN IF NOT EXISTS sample_doc_ids TEXT[] NOT NULL DEFAULT '{}'",
+    "ALTER TABLE ranking_items ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'other'",
+    "ALTER TABLE ranking_items ADD COLUMN IF NOT EXISTS category_label TEXT NOT NULL DEFAULT 'Прочее'",
 )
 
 CREATE_RANKING_ITEM_SOURCES_TABLE_SQL = """
@@ -214,6 +218,8 @@ class InMemoryRankingRepository:
                             raw_payload={},
                             quality_weight=self.document_quality_weights.get(doc_id, 1.0),
                             sentiment_score=self.document_sentiments.get(doc_id, default_sentiment),
+                            category="other",
+                            category_label="Прочее",
                         ),
                     )
                     continue
@@ -230,6 +236,8 @@ class InMemoryRankingRepository:
                         raw_payload=dict(document.raw_payload),
                         quality_weight=self.document_quality_weights.get(doc_id, document.quality_weight),
                         sentiment_score=self.document_sentiments.get(doc_id, document.sentiment_score),
+                        category=document.category,
+                        category_label=document.category_label,
                     ),
                 )
             grouped[cluster_id] = tuple(documents)
@@ -268,6 +276,8 @@ class InMemoryRankingRepository:
                     unique_sources=item.unique_sources,
                     is_new=item.is_new,
                     is_growing=item.is_growing,
+                    category=item.category,
+                    category_label=item.category_label,
                 )
                 for item in items
             ),
@@ -364,7 +374,9 @@ class PostgresRankingRepository:
                    d.region_hint,
                    d.raw_payload,
                    COALESCE(d.quality_weight, 1.0) AS quality_weight,
-                   ds.sentiment_score
+                   ds.sentiment_score,
+                   COALESCE(d.category, 'other') AS category,
+                   COALESCE(d.category_label, 'Прочее') AS category_label
             FROM cluster_documents cd
             JOIN {self._documents_table} d ON d.doc_id = cd.doc_id
             LEFT JOIN {self._sentiments_table} ds ON ds.doc_id = cd.doc_id
@@ -426,7 +438,7 @@ class PostgresRankingRepository:
                     """
                     SELECT cluster_id, rank, score, score_breakdown, sentiment_score, mention_count,
                            reach_total, growth_rate, geo_regions, unique_authors, unique_sources,
-                           is_new, is_growing
+                           is_new, is_growing, category, category_label
                     FROM ranking_items
                     WHERE ranking_id = %s
                     ORDER BY rank ASC, cluster_id ASC
@@ -474,9 +486,10 @@ class PostgresRankingRepository:
                         INSERT INTO ranking_items (
                             ranking_id, cluster_id, rank, score, summary, key_phrases, mention_count,
                             unique_authors, unique_sources, reach_total, growth_rate, geo_regions,
-                            score_breakdown, sample_doc_ids, sentiment_score, is_new, is_growing
+                            score_breakdown, sample_doc_ids, sentiment_score, is_new, is_growing,
+                            category, category_label
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             ranking.ranking_id,
@@ -496,6 +509,8 @@ class PostgresRankingRepository:
                             item.sentiment_score,
                             item.is_new,
                             item.is_growing,
+                            item.category,
+                            item.category_label,
                         ),
                     )
                     for source in item.sources:
@@ -597,6 +612,8 @@ def _row_to_document_record(row: Sequence[Any]) -> RankingDocumentRecord:
         raw_payload=dict(row[8]),
         quality_weight=float(row[9]),
         sentiment_score=float(row[10]) if row[10] is not None else None,
+        category=str(row[11]),
+        category_label=str(row[12]),
     )
 
 
@@ -635,6 +652,8 @@ def _row_to_stored_ranking_item(row: Sequence[Any]) -> StoredRankingItem:
         unique_sources=int(row[10]),
         is_new=bool(row[11]),
         is_growing=bool(row[12]),
+        category=str(row[13]),
+        category_label=str(row[14]),
     )
 
 

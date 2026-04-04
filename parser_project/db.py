@@ -201,7 +201,11 @@ def upsert_normalized_message(
         geo_source,
         geo_evidence,
         engagement,
-        metadata_version
+        metadata_version,
+        category,
+        category_label,
+        category_confidence,
+        secondary_category
     ) VALUES (
         %(raw_message_id)s,
         %(doc_id)s,
@@ -244,7 +248,11 @@ def upsert_normalized_message(
         %(geo_source)s,
         %(geo_evidence)s,
         %(engagement)s,
-        %(metadata_version)s
+        %(metadata_version)s,
+        %(category)s,
+        %(category_label)s,
+        %(category_confidence)s,
+        %(secondary_category)s
     )
     ON CONFLICT (doc_id) DO UPDATE
     SET
@@ -289,6 +297,10 @@ def upsert_normalized_message(
         geo_evidence = EXCLUDED.geo_evidence,
         engagement = EXCLUDED.engagement,
         metadata_version = EXCLUDED.metadata_version,
+        category = EXCLUDED.category,
+        category_label = EXCLUDED.category_label,
+        category_confidence = EXCLUDED.category_confidence,
+        secondary_category = EXCLUDED.secondary_category,
         updated_at = NOW()
     """
     payload = _normalized_message_payload(document, raw_message_id=raw_message_id)

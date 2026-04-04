@@ -40,6 +40,8 @@ EXPECTED_RANKED_CLUSTER_FIELDS = {
     "sources",
     "sample_posts",
     "timeline",
+    "category",
+    "category_label",
 }
 
 EXPECTED_EVENT_FIELDS = {

@@ -2,7 +2,13 @@ import sys
 import types
 from datetime import datetime, timezone
 
-sys.modules.setdefault("kafka_producer", types.SimpleNamespace(send_document=lambda *args, **kwargs: None))
+sys.modules.setdefault(
+    "kafka_producer",
+    types.SimpleNamespace(
+        send_document=lambda *args, **kwargs: None,
+        flush=lambda: None,
+    ),
+)
 
 from collect_max_messages import build_max_comment_raw_message, build_max_post_raw_message
 from collect_portal_appeals import RawPortalAppeal, build_portal_raw_message

@@ -1,1 +1,41 @@
-# TODO
+regions:
+  rostov-na-donu:
+    label: "Ростов-на-Дону"
+    lat: 47.2357
+    lon: 39.7015
+  taganrog:
+    label: "Таганрог"
+    lat: 47.2086
+    lon: 38.9369
+  bataysk:
+    label: "Батайск"
+    lat: 47.1398
+    lon: 39.7518
+  aksay:
+    label: "Аксай"
+    lat: 47.2676
+    lon: 39.8756
+  azov:
+    label: "Азов"
+    lat: 47.1078
+    lon: 39.4165
+  volgograd:
+    label: "Волгоград"
+    lat: 48.7071
+    lon: 44.5169
+  volzhskiy:
+    label: "Волжский"
+    lat: 48.7858
+    lon: 44.7797
+  kamyshin:
+    label: "Камышин"
+    lat: 50.0827
+    lon: 45.4074
+  rostov-oblast:
+    label: "Ростовская область"
+    lat: 47.2357
+    lon: 39.7015
+  volgograd-oblast:
+    label: "Волгоградская область"
+    lat: 48.7071
+    lon: 44.5169
