@@ -2,7 +2,6 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from config import load_config, validate_vk_config
-from id_builders import build_vk_comment_doc_id, build_vk_post_doc_id
 from kafka_producer import send_document
 from schema import RawDocument, SourceType
 from vk_client import get_post_comments, get_wall_posts, resolve_screen_name
@@ -23,21 +22,6 @@ def _vk_created_at(raw_item: dict) -> datetime:
     return datetime.fromtimestamp(raw_ts, timezone.utc)
 
 
-def _to_source_url(owner_id: int, post_id: int, comment_id: int | None = None) -> str:
-    base_url = f"https://vk.com/wall{owner_id}_{post_id}"
-    if comment_id is None:
-        return base_url
-    return f"{base_url}?reply={comment_id}"
-
-
-def _extract_engagement(raw_item: dict) -> dict:
-    engagement_raw = {}
-    for key in ("likes", "reposts", "comments", "views"):
-        if key in raw_item:
-            engagement_raw[key] = raw_item[key]
-    return engagement_raw
-
-
 def _author_raw(raw_item: dict) -> str | None:
     author_id = raw_item.get("from_id")
     if author_id is None:
@@ -47,32 +31,23 @@ def _author_raw(raw_item: dict) -> str | None:
     return str(author_id)
 
 
-def _created_at_raw(raw_item: dict) -> str | None:
-    raw_date = raw_item.get("date")
-    if raw_date is None:
-        return None
-    return str(raw_date)
-
-
 def build_raw_vk_post_document(raw_post: dict, collected_at: datetime) -> RawDocument:
     source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
     return RawDocument(
-        doc_id=build_vk_post_doc_id(source_id),
         source_type=SourceType.VK_POST.value,
         source_id=source_id,
         parent_source_id=None,
         text_raw=raw_post.get("text", ""),
-        title_raw=None,
         author_raw=_author_raw(raw_post),
-        created_at_raw=_created_at_raw(raw_post),
         created_at=_vk_created_at(raw_post),
         collected_at=collected_at,
-        source_url=_to_source_url(raw_post["owner_id"], raw_post["id"]),
-        source_domain="vk.com",
-        region_hint_raw=None,
-        geo_raw=raw_post.get("geo"),
-        engagement_raw=_extract_engagement(raw_post),
+        media_type=raw_post.get("post_type"),
         raw_payload=raw_post,
+        is_official=False,
+        reach=int(raw_post.get("views", {}).get("count", 0) or 0),
+        likes=int(raw_post.get("likes", {}).get("count", 0) or 0),
+        reposts=int(raw_post.get("reposts", {}).get("count", 0) or 0),
+        comments_count=int(raw_post.get("comments", {}).get("count", 0) or 0),
     )
 
 
@@ -80,22 +55,20 @@ def build_raw_vk_comment_document(raw_comment: dict, raw_post: dict, collected_a
     parent_source_id = f"{raw_post['owner_id']}_{raw_post['id']}"
     source_id = f"{parent_source_id}_{raw_comment['id']}"
     return RawDocument(
-        doc_id=build_vk_comment_doc_id(source_id),
         source_type=SourceType.VK_COMMENT.value,
         source_id=source_id,
         parent_source_id=parent_source_id,
         text_raw=raw_comment.get("text", ""),
-        title_raw=None,
         author_raw=_author_raw(raw_comment),
-        created_at_raw=_created_at_raw(raw_comment),
         created_at=_vk_created_at(raw_comment),
         collected_at=collected_at,
-        source_url=_to_source_url(raw_post["owner_id"], raw_post["id"], raw_comment["id"]),
-        source_domain="vk.com",
-        region_hint_raw=None,
-        geo_raw=raw_comment.get("geo"),
-        engagement_raw=_extract_engagement(raw_comment),
+        media_type=raw_comment.get("media_type"),
         raw_payload=raw_comment,
+        is_official=False,
+        reach=0,
+        likes=int(raw_comment.get("likes", {}).get("count", 0) or 0),
+        reposts=int(raw_comment.get("reposts", {}).get("count", 0) or 0),
+        comments_count=int(raw_comment.get("thread", {}).get("count", 0) or 0),
     )
 
 
@@ -186,7 +159,7 @@ def main():
                     collected_at = datetime.now(timezone.utc)
                     doc = build_raw_vk_post_document(raw_post, collected_at)
 
-                    send_document(CONFIG.kafka_topic, doc.model_dump(mode="json"))
+                    send_document(CONFIG.kafka_raw_topic, doc.model_dump(mode="json"))
                     save_document_jsonl("documents.jsonl", doc)
 
                     short_view = doc.model_dump(mode="json")
@@ -224,7 +197,7 @@ def main():
                                 raw_post,
                                 comment_collected_at,
                             )
-                            send_document(CONFIG.kafka_topic, comment_doc.model_dump(mode="json"))
+                            send_document(CONFIG.kafka_raw_topic, comment_doc.model_dump(mode="json"))
                             save_document_jsonl("documents.jsonl", comment_doc)
                             total_sent += 1
                             post_comments_sent += 1

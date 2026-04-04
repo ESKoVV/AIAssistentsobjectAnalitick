@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from config import load_config, validate_max_config
-from id_builders import build_max_comment_doc_id, build_max_post_doc_id
 from kafka_producer import send_document
 from schema import RawDocument, SourceType
 
@@ -121,21 +120,7 @@ def _parse_datetime(value: Any) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _created_at_raw(value: Any) -> str | None:
-    if value is None:
-        return None
-    return str(value)
-
-
-def _extract_engagement(raw_item: dict[str, Any]) -> dict[str, Any]:
-    engagement_raw: dict[str, Any] = {}
-    for field in ("likes", "reposts", "comments_count", "replies_count", "reach"):
-        if field in raw_item and raw_item.get(field) is not None:
-            engagement_raw[field] = raw_item.get(field)
-    return engagement_raw
-
-
-def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> RawDocument:
+def build_raw_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> RawDocument:
     text = str(raw_post.get("text", "")).strip()
     if not text:
         raise ValueError("Пустой MAX-пост: text обязателен")
@@ -145,26 +130,24 @@ def normalize_max_post(raw_post: dict[str, Any], channel: dict[str, Any]) -> Raw
     source_id = f"{channel_id}_{post_id}"
 
     return RawDocument(
-        doc_id=build_max_post_doc_id(source_id),
         source_type=SourceType.MAX_POST.value,
         source_id=source_id,
         parent_source_id=None,
         text_raw=text,
-        title_raw=None,
         author_raw=str(raw_post.get("author_id")) if raw_post.get("author_id") is not None else None,
-        created_at_raw=_created_at_raw(raw_post.get("created_at")),
         created_at=_parse_datetime(raw_post.get("created_at")),
         collected_at=datetime.now(timezone.utc),
-        source_url=None,
-        source_domain="max",
-        region_hint_raw=str(raw_post["region_hint"]) if "region_hint" in raw_post and raw_post["region_hint"] is not None else None,
-        geo_raw=raw_post.get("geo") if "geo" in raw_post else None,
-        engagement_raw=_extract_engagement(raw_post),
+        media_type=raw_post.get("media_type"),
         raw_payload=raw_post,
+        is_official=bool(raw_post.get("is_official", False)),
+        reach=int(raw_post.get("reach", 0) or 0),
+        likes=int(raw_post.get("likes", 0) or 0),
+        reposts=int(raw_post.get("reposts", 0) or 0),
+        comments_count=int(raw_post.get("comments_count", 0) or 0),
     )
 
 
-def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, Any]) -> RawDocument:
+def build_raw_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, Any]) -> RawDocument:
     text = str(raw_comment.get("text", "")).strip()
     if not text:
         raise ValueError("Пустой MAX-комментарий: text обязателен")
@@ -176,22 +159,20 @@ def normalize_max_comment(raw_comment: dict[str, Any], parent_post: dict[str, An
     source_id = f"{post_source_id}_{comment_id}"
 
     return RawDocument(
-        doc_id=build_max_comment_doc_id(source_id),
         source_type=SourceType.MAX_COMMENT.value,
         source_id=source_id,
         parent_source_id=post_source_id,
         text_raw=text,
-        title_raw=None,
         author_raw=str(raw_comment.get("author_id")) if raw_comment.get("author_id") is not None else None,
-        created_at_raw=_created_at_raw(raw_comment.get("created_at")),
         created_at=_parse_datetime(raw_comment.get("created_at")),
         collected_at=datetime.now(timezone.utc),
-        source_url=None,
-        source_domain="max",
-        region_hint_raw=str(raw_comment["region_hint"]) if "region_hint" in raw_comment and raw_comment["region_hint"] is not None else None,
-        geo_raw=raw_comment.get("geo") if "geo" in raw_comment else None,
-        engagement_raw=_extract_engagement(raw_comment),
+        media_type=raw_comment.get("media_type"),
         raw_payload=raw_comment,
+        is_official=bool(raw_comment.get("is_official", False)),
+        reach=int(raw_comment.get("reach", 0) or 0),
+        likes=int(raw_comment.get("likes", 0) or 0),
+        reposts=int(raw_comment.get("reposts", 0) or 0),
+        comments_count=int(raw_comment.get("comments_count", 0) or 0),
     )
 
 
@@ -218,12 +199,12 @@ def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
 
         for post in posts:
             try:
-                post_doc = normalize_max_post(post, channel)
+                post_doc = build_raw_max_post(post, channel)
                 send_document(kafka_topic, post_doc.model_dump(mode="json"))
                 save_document_jsonl(CONFIG.max_output_jsonl_path, post_doc)
                 total_sent += 1
             except Exception as post_error:
-                logger.exception("Ошибка нормализации/отправки поста channel=%s: %s", channel_id, post_error)
+                logger.exception("Ошибка raw-обработки/отправки поста channel=%s: %s", channel_id, post_error)
                 continue
 
             post_id = str(post.get("id"))
@@ -235,13 +216,13 @@ def process_max_messages(client: MaxClient, kafka_topic: str) -> int:
 
             for comment in comments:
                 try:
-                    comment_doc = normalize_max_comment(comment, post)
+                    comment_doc = build_raw_max_comment(comment, post)
                     send_document(kafka_topic, comment_doc.model_dump(mode="json"))
                     save_document_jsonl(CONFIG.max_output_jsonl_path, comment_doc)
                     total_sent += 1
                 except Exception as comment_error:
                     logger.exception(
-                        "Ошибка нормализации/отправки комментария channel=%s post=%s: %s",
+                        "Ошибка raw-обработки/отправки комментария channel=%s post=%s: %s",
                         channel_id,
                         post_id,
                         comment_error,
@@ -258,13 +239,13 @@ def main() -> None:
     )
 
     logger.info("Запуск сборщика MAX (mock mode)")
-    logger.info("Kafka topic=%s", CONFIG.kafka_topic)
+    logger.info("Kafka topic=%s", CONFIG.kafka_raw_topic)
     logger.info("Mock data path=%s", CONFIG.max_mock_data_path)
 
     # TODO: заменить фабрику клиента на переключение mock/real через env-флаг.
     client: MaxClient = MockMaxClient(CONFIG.max_mock_data_path)
 
-    total = process_max_messages(client, CONFIG.kafka_topic)
+    total = process_max_messages(client, CONFIG.kafka_raw_topic)
     logger.info("MAX ingest завершён, отправлено сообщений=%d", total)
 
 

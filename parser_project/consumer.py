@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from kafka import KafkaConsumer
 from pydantic import ValidationError
 
-from config import load_config, validate_consumer_config
+from config import load_config, validate_consumer_config, validate_raw_db_config
 from db import upsert_raw_document
 from schema import RawDocument
 
@@ -30,8 +30,9 @@ def save_failed_message(raw_message: dict, error: str) -> None:
 
 def main() -> None:
     validate_consumer_config(CONFIG)
+    validate_raw_db_config(CONFIG)
     consumer = KafkaConsumer(
-        CONFIG.kafka_topic,
+        CONFIG.kafka_raw_topic,
         bootstrap_servers=CONFIG.kafka_bootstrap_servers,
         auto_offset_reset="earliest",
         enable_auto_commit=False,
@@ -39,7 +40,7 @@ def main() -> None:
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
     )
 
-    print(f"Слушаю Kafka topic: {CONFIG.kafka_topic}")
+    print(f"Слушаю Kafka raw topic: {CONFIG.kafka_raw_topic}")
     print("Нажми Ctrl+C, чтобы остановить.")
     print("-" * 80)
 
@@ -52,10 +53,9 @@ def main() -> None:
 
             try:
                 raw_document = RawDocument.model_validate(raw_data)
-                doc_id = raw_document.doc_id
                 print(
                     f"ℹ️ topic={topic} partition={partition} offset={offset} "
-                    f"doc_id={doc_id} status=processing"
+                    f"source_type={raw_document.source_type} source_id={raw_document.source_id} status=processing"
                 )
             except ValidationError as exc:
                 print(
@@ -70,12 +70,12 @@ def main() -> None:
                 consumer.commit()
                 print(
                     f"✅ topic={topic} partition={partition} offset={offset} "
-                    f"doc_id={raw_document.doc_id} status=upserted_and_committed"
+                    f"source_type={raw_document.source_type} source_id={raw_document.source_id} status=upserted_and_committed"
                 )
             except Exception as exc:
                 print(
                     f"❌ topic={topic} partition={partition} offset={offset} "
-                    f"doc_id={raw_document.doc_id} status=upsert_error error={exc}"
+                    f"source_type={raw_document.source_type} source_id={raw_document.source_id} status=upsert_error error={exc}"
                 )
                 save_failed_message(raw_data, str(exc))
 

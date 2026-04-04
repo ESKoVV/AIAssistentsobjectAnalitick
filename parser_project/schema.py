@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SourceType(str, Enum):
@@ -49,24 +49,24 @@ class NormalizedDocument(BaseModel):
 
 
 class RawDocument(BaseModel):
-    doc_id: str
+    # legacy compatibility (not written to public.raw_messages)
+    doc_id: Optional[str] = None
+
     source_type: str
     source_id: str
-    parent_source_id: Optional[str]
+    parent_source_id: Optional[str] = None
 
+    author_raw: Optional[str] = None
     text_raw: str
-    title_raw: Optional[str]
-    author_raw: Optional[str]
-    created_at_raw: Optional[str]
+    media_type: Optional[str] = None
 
     created_at: datetime
-    collected_at: datetime
+    collected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    source_url: Optional[str]
-    source_domain: Optional[str]
+    raw_payload: dict[str, Any]
 
-    region_hint_raw: Optional[str]
-    geo_raw: Optional[dict]
-
-    engagement_raw: dict
-    raw_payload: dict
+    is_official: bool = False
+    reach: int = 0
+    likes: int = 0
+    reposts: int = 0
+    comments_count: int = 0
