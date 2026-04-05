@@ -7,7 +7,7 @@ import { useHealth, useHistory, useTop } from '../hooks/useTop';
 import { formatDateTime } from '../utils/formatDate';
 
 export const Dashboard = () => {
-  const topQuery = useTop({ period: '24h', limit: 5 });
+  const topQuery = useTop({ period: '24h', limit: 10 });
   const healthQuery = useHealth();
   const historyQuery = useHistory({
     from_dt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -53,7 +53,7 @@ export const Dashboard = () => {
       </div>
 
       <section>
-        <h3 className="mb-2 text-lg font-semibold">Топ-5 новостей за 24 часа</h3>
+        <h3 className="mb-2 text-lg font-semibold">Топ-10 новостей за 24 часа</h3>
         <div className="grid gap-3 lg:grid-cols-2">
           {top.items.map((topic) => <TopicCard key={topic.cluster_id} topic={topic} />)}
         </div>
