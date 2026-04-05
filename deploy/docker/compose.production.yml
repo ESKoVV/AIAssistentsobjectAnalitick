@@ -34,9 +34,9 @@ x-orchestration-env: &orchestration-env
   SUMMARIZATION_INPUT_TOPIC: ${KAFKA_CLUSTERS_UPDATED_TOPIC:-clusters.updated}
   SUMMARIZATION_OUTPUT_TOPIC: ${KAFKA_DESCRIPTIONS_UPDATED_TOPIC:-descriptions.updated}
   SUMMARIZATION_PROMPTS_PATH: /app/configs/prompts/summarization.md
-  SUMMARIZATION_LLM_BASE_URL: ${SUMMARIZATION_LLM_BASE_URL:-http://vllm:8000}
-  SUMMARIZATION_LLM_MODEL_NAME: ${SUMMARIZATION_LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
-  SUMMARIZATION_LLM_API_KEY: ${SUMMARIZATION_LLM_API_KEY:-}
+  SUMMARIZATION_ALICAGPT_BASE_URL: ${SUMMARIZATION_ALICAGPT_BASE_URL:-http://alicagpt:8000}
+  SUMMARIZATION_ALICAGPT_MODEL_NAME: ${SUMMARIZATION_ALICAGPT_MODEL_NAME:-}
+  SUMMARIZATION_ALICAGPT_API_KEY: ${SUMMARIZATION_ALICAGPT_API_KEY:-}
   RANKING_POSTGRES_DSN: ${DATABASE_URL}
   RANKING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
   RANKING_INPUT_TOPIC: ${KAFKA_DESCRIPTIONS_UPDATED_TOPIC:-descriptions.updated}
@@ -250,18 +250,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  vllm:
+  alicagpt:
     image: vllm/vllm-openai:v0.5.5
     profiles: ["llm"]
+    entrypoint: ["/bin/sh", "-lc"]
     command:
-      - --model
-      - ${SUMMARIZATION_LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8000"
+      - >-
+        test -n "$SUMMARIZATION_ALICAGPT_MODEL_NAME" &&
+        exec vllm serve "$SUMMARIZATION_ALICAGPT_MODEL_NAME" --host 0.0.0.0 --port 8000
     ports:
-      - "${VLLM_PORT:-8001}:8000"
+      - "${ALICAGPT_PORT:-8001}:8000"
     shm_size: "2gb"
 
   summarization-consumer:
@@ -273,10 +271,12 @@ services:
     environment:
       <<: [*common-env, *orchestration-env]
       SUMMARIZATION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SUMMARIZATION_LLM_BASE_URL: ${SUMMARIZATION_LLM_BASE_URL:-http://vllm:8000}
+      SUMMARIZATION_ALICAGPT_BASE_URL: ${SUMMARIZATION_ALICAGPT_BASE_URL:-http://alicagpt:8000}
     depends_on:
       kafka:
         condition: service_healthy
+      alicagpt:
+        condition: service_started
     restart: unless-stopped
 
   ranking-consumer:

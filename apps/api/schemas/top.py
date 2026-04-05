@@ -53,6 +53,7 @@ class TopItem(BaseModel):
     summary: str
     category: str
     category_label: str
+    importance_reason: str = ""
     key_phrases: list[str]
     urgency: UrgencyLevel
     urgency_reason: str

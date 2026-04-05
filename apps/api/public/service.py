@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
+from apps.ml.ranking import explain_rank
 
 from apps.api.schemas.top import (
     ClusterDetailResponse,
@@ -381,6 +383,7 @@ class TopAPIService:
             summary=item.summary,
             category=item.category,
             category_label=item.category_label,
+            importance_reason=_build_importance_reason(item, rank=rank),
             key_phrases=item.key_phrases,
             urgency=urgency,
             urgency_reason=urgency_reason,
@@ -467,6 +470,41 @@ def _bucket_start(value: datetime, granularity: GranularityLiteral) -> datetime:
 
 def _normalize_region_label(value: str) -> str:
     return value.strip().casefold()
+
+
+def _build_importance_reason(item: SnapshotItemRecord, *, rank: int) -> str:
+    try:
+        return explain_rank(
+            SimpleNamespace(
+                rank=rank,
+                mention_count=item.mention_count,
+                is_new=item.is_new,
+                is_growing=item.is_growing,
+                growth_rate=item.growth_rate,
+                geo_regions=item.geo_regions,
+                score_breakdown=SimpleNamespace(
+                    volume_score=item.score_breakdown["volume"],
+                    dynamics_score=item.score_breakdown["dynamics"],
+                    sentiment_score=item.score_breakdown["sentiment"],
+                    reach_score=item.score_breakdown["reach"],
+                    geo_score=item.score_breakdown["geo"],
+                    source_score=item.score_breakdown["source"],
+                    weights={
+                        "volume": 1.0,
+                        "dynamics": 1.0,
+                        "sentiment": 1.0,
+                        "reach": 1.0,
+                        "geo": 1.0,
+                        "source": 1.0,
+                    },
+                ),
+            ),
+        )
+    except Exception:
+        return (
+            f"Ранг {rank}: {item.mention_count} упоминаний; "
+            f"рост {item.growth_rate:.1f}x; география {len(set(item.geo_regions))}."
+        )
 
 
 @lru_cache(maxsize=1)

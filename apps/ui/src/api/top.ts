@@ -514,7 +514,7 @@ export const getTop = async (filters: TopFilters = {}): Promise<TopResponse> => 
 };
 
 export const getTopGeo = async (filters: TopFilters = {}): Promise<GeoResponse> => {
-  if (useMocks) return mockGeoResponse(filters);
+  if (useMocks) return mockTopApi.getTopGeo(filters);
   return fetchJson<GeoResponse>('/api/v1/top/geo', {
     region: filters.region,
     source: filters.source,
@@ -526,7 +526,7 @@ export const getTopGeo = async (filters: TopFilters = {}): Promise<GeoResponse> 
 };
 
 export const getClusterDetail = async (clusterId: string): Promise<ClusterDetailResponse> => {
-  if (useMocks) return mockClusterDetail(clusterId);
+  if (useMocks) return mockTopApi.getClusterDetail(clusterId);
   return fetchJson<ClusterDetailResponse>(`/api/v1/top/${clusterId}`);
 };
 
@@ -545,13 +545,7 @@ export const getClusterDocuments = async (
 };
 
 export const getClusterTimeline = async (clusterId: string): Promise<TimelineResponse> => {
-  if (useMocks) {
-    const detail = mockClusterDetail(clusterId);
-    return {
-      cluster_id: clusterId,
-      points: detail.timeline
-    };
-  }
+  if (useMocks) return mockTopApi.getClusterTimeline(clusterId);
   return fetchJson<TimelineResponse>(`/api/v1/top/${clusterId}/timeline`);
 };
 
@@ -560,11 +554,11 @@ export const getHistory = async (params: {
   to_dt: string;
   granularity: 'hourly' | '6h' | 'daily';
 }): Promise<HistoryResponse> => {
-  if (useMocks) return mockHistoryResponse();
+  if (useMocks) return mockTopApi.getHistory();
   return fetchJson<HistoryResponse>('/api/v1/history', params);
 };
 
 export const getHealth = async (): Promise<HealthResponse> => {
-  if (useMocks) return mockHealthResponse;
+  if (useMocks) return mockTopApi.getHealth();
   return fetchJson<HealthResponse>('/api/v1/health');
 };

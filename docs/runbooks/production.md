@@ -116,7 +116,7 @@ docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose
 Если нужен локальный self-hosted LLM и верхний контур `summarization -> ranking -> API -> UI`, добавьте профиль `llm`:
 
 ```bash
-docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile llm up -d vllm summarization-consumer ranking-consumer api ui
+docker compose --env-file deploy/docker/.env.production -f deploy/docker/compose.production.yml --profile llm up -d alicagpt summarization-consumer ranking-consumer api ui
 ```
 
 ## 6. Acceptance Checks

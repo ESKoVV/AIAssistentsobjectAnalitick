@@ -90,7 +90,7 @@ def test_fallback_client_uses_secondary_on_primary_rate_limit() -> None:
                 LLMResponse(
                     text="ОПИСАНИЕ: тест.\nФРАЗЫ: одна; две; три; четыре; пять",
                     usage=LLMUsage(input_tokens=10, output_tokens=5),
-                    model_name="llama3-70b",
+                    model_name="alicagpt-fallback",
                 ),
             ],
         ),
@@ -106,7 +106,7 @@ def test_fallback_client_uses_secondary_on_primary_rate_limit() -> None:
         ),
     )
 
-    assert response.model_name == "llama3-70b"
+    assert response.model_name == "alicagpt-fallback"
     assert response.fallback_used is True
 
 
@@ -131,7 +131,7 @@ def test_service_retries_after_invalid_output_and_persists_valid_second_attempt(
                 LLMResponse(
                     text="ОПИСАНИЕ: проблема с водой.\nФРАЗЫ: проблема с водой; адреса домов",
                     usage=LLMUsage(input_tokens=100, output_tokens=20),
-                    model_name="gpt-4o",
+                    model_name="alicagpt-primary",
                 ),
                 LLMResponse(
                     text=(
@@ -140,7 +140,7 @@ def test_service_retries_after_invalid_output_and_persists_valid_second_attempt(
                         "ФРАЗЫ: нет горячей воды; сроки восстановления подачи; адреса домов; ремонтные работы; график отключения"
                     ),
                     usage=LLMUsage(input_tokens=110, output_tokens=35),
-                    model_name="gpt-4o",
+                    model_name="alicagpt-primary",
                 ),
             ],
         ),
@@ -157,6 +157,6 @@ def test_service_retries_after_invalid_output_and_persists_valid_second_attempt(
     stored = repository.descriptions[cluster.cluster_id]
     assert result.updated_cluster_ids == ("cluster-1",)
     assert stored.needs_review is False
-    assert stored.description.model_name == "gpt-4o"
+    assert stored.description.model_name == "alicagpt-primary"
     assert len(repository.llm_costs) == 2
     assert repository.llm_costs[0].validation_error == "описание слишком короткое"

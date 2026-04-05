@@ -181,7 +181,7 @@ def build_cluster_description(
     ),
     key_phrases: list[str] | None = None,
     sample_doc_ids: list[str] | None = None,
-    model_name: str = "gpt-4o",
+    model_name: str = "alicagpt-primary",
     prompt_version: str = "prompt-hash",
     generated_at: datetime | None = None,
     input_token_count: int = 120,

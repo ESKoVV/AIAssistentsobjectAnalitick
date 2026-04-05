@@ -1,5 +1,3 @@
-import regions from '../mocks/regions.json';
-
 export interface RegionPoint {
   name: string;
   lat: number;

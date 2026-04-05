@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import os
 
-from apps.ml.summarization import SummarizationServiceConfig, build_llm_client_from_env
+from apps.ml.summarization import SummarizationServiceConfig, build_alicagpt_client_from_env
 from apps.orchestration.consumers import (
     AioKafkaProducerAdapter,
     KafkaClusterDescriptionConsumerApp,
@@ -31,7 +31,7 @@ async def _main() -> None:
     try:
         service = build_default_summarization_service(
             config,
-            llm_client=build_llm_client_from_env(),
+            llm_client=build_alicagpt_client_from_env(),
         )
         app = KafkaClusterDescriptionConsumerApp(
             config=config,

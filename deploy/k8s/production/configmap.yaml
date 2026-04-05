@@ -22,8 +22,8 @@ data:
   SUMMARIZATION_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
   SUMMARIZATION_DOCUMENTS_TABLE: normalized_messages
   SUMMARIZATION_PROMPTS_PATH: /app/configs/prompts/summarization.md
-  SUMMARIZATION_LLM_BASE_URL: http://vllm.regional-analytics.svc.cluster.local:8000
-  SUMMARIZATION_LLM_MODEL_NAME: Qwen/Qwen2.5-7B-Instruct
+  SUMMARIZATION_ALICAGPT_BASE_URL: http://alicagpt.regional-analytics.svc.cluster.local:8000
+  SUMMARIZATION_ALICAGPT_MODEL_NAME: /models/alicagpt
   RANKING_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
   SENTIMENT_KAFKA_BOOTSTRAP_SERVERS: kafka.regional-analytics.svc.cluster.local:9092
   SENTIMENT_MODEL_NAME: blanchefort/rubert-base-cased-sentiment
