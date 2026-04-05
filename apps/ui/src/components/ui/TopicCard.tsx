@@ -15,6 +15,9 @@ export const TopicCard = ({ topic }: { topic: TopItem }) => (
       </div>
     </div>
     <h3 className="mb-2 text-lg font-semibold">{topic.summary}</h3>
+    <p className="mb-2 text-sm text-slate-300">
+      Почему в топе: {topic.dashboard_reason}
+    </p>
     <UrgencyIndicator urgency={topic.urgency} reason={topic.urgency_reason} />
     <div className="mt-3 flex flex-wrap gap-1">
       {topic.key_phrases.slice(0, 5).map((phrase) => (
