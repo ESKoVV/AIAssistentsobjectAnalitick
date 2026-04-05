@@ -188,6 +188,6 @@ python parser_project/replay_raw_messages.py --dry-run
 
 ## Разработчики
 
-- заполните этот блок перед сдачей: ФИО участников, роли и контакты;
-- рекомендуемый формат: `Иванов Иван, backend/data engineer, telegram/email`;
-- если README готовится для хакатона или публичной подачи, добавьте сюда только согласованные контакты.
+Клименко Илья витальевич - data analyst, ML @ler0yyyy.
+Еськов Владимир Сергеевич - data science, парсинг. @Koksaralya
+Вовченко Артем Алексеевич - Full-Stack, UI-UX
