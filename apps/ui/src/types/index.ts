@@ -37,7 +37,7 @@ export interface TopItem {
   rank: number;
   cluster_id: string;
   summary: string;
-  dashboard_reason: string;
+  dashboard_reason?: string;
   category: string;
   category_label: string;
   key_phrases: string[];

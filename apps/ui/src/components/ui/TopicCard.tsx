@@ -2,6 +2,10 @@ import { Link } from 'react-router-dom';
 import { TopItem } from '../../types';
 import { UrgencyIndicator } from './UrgencyIndicator';
 
+const fallbackReason = (topic: TopItem) =>
+  topic.dashboard_reason
+  ?? `Рост ${topic.growth_rate.toFixed(1)}x, ${topic.mention_count} публикаций, охват ${topic.reach_total.toLocaleString('ru-RU')}.`;
+
 export const TopicCard = ({ topic }: { topic: TopItem }) => (
   <Link to={`/clusters/${topic.cluster_id}`} className="block rounded-lg border border-slate-700 bg-panel p-4 transition hover:border-blue-500">
     <div className="mb-3 flex items-start justify-between gap-4">
@@ -16,7 +20,7 @@ export const TopicCard = ({ topic }: { topic: TopItem }) => (
     </div>
     <h3 className="mb-2 text-lg font-semibold">{topic.summary}</h3>
     <p className="mb-2 text-sm text-slate-300">
-      Почему в топе: {topic.dashboard_reason}
+      Почему в топе: {fallbackReason(topic)}
     </p>
     <UrgencyIndicator urgency={topic.urgency} reason={topic.urgency_reason} />
     <div className="mt-3 flex flex-wrap gap-1">
