@@ -11,7 +11,12 @@ export const SourcePieChart = ({ data, nameKey }: { data: { count: number; [key:
             <Cell key={i} fill={COLORS[i % COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip />
+        <Tooltip
+          formatter={(value: number) => [`${value}`, 'Посты']}
+          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 8 }}
+          labelStyle={{ color: '#e2e8f0' }}
+          itemStyle={{ color: '#93c5fd' }}
+        />
       </PieChart>
     </ResponsiveContainer>
   </div>
