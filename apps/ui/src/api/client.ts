@@ -1,6 +1,10 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
-export const useMocks = import.meta.env.VITE_USE_MOCKS === 'true' || !BASE_URL;
+export const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
+
+if (!useMocks && !BASE_URL) {
+  throw new Error('VITE_API_BASE_URL must be configured when VITE_USE_MOCKS is not true');
+}
 
 export const buildUrl = (path: string, params?: Record<string, string | number | undefined>) => {
   const url = new URL(`${BASE_URL}${path}`, window.location.origin);

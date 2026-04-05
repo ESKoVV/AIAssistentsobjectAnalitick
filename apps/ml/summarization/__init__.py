@@ -1,7 +1,10 @@
 from .config import SummarizationServiceConfig
 from .http_client import (
+    ChatCompletionsLLMClient,
+    ChatCompletionsLLMClientConfig,
     OpenAICompatibleLLMClient,
     OpenAICompatibleLLMClientConfig,
+    build_alicagpt_client_from_env,
     build_llm_client_from_env,
 )
 from .parsing import parse_response
@@ -43,6 +46,8 @@ __all__ = [
     "ClusterDescription",
     "ClusterDescriptionBatchResult",
     "ClusterDescriptionService",
+    "ChatCompletionsLLMClient",
+    "ChatCompletionsLLMClientConfig",
     "DescriptionHistoryRecord",
     "DescriptionMetrics",
     "DescriptionsUpdatedEvent",
@@ -64,6 +69,7 @@ __all__ = [
     "SummarizationRepositoryProtocol",
     "SummarizationServiceConfig",
     "ValidationResult",
+    "build_alicagpt_client_from_env",
     "estimate_cost_usd",
     "estimate_tokens",
     "hash_prompt_spec",

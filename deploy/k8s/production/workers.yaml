@@ -245,39 +245,42 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm
+  name: alicagpt
   namespace: regional-analytics
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm
+      app: alicagpt
   template:
     metadata:
       labels:
-        app: vllm
+        app: alicagpt
     spec:
       containers:
-        - name: vllm
+        - name: alicagpt
           image: vllm/vllm-openai:v0.5.5
+          command: ["/bin/sh", "-lc"]
           args:
-            - --model
-            - Qwen/Qwen2.5-7B-Instruct
-            - --host
-            - 0.0.0.0
-            - --port
-            - "8000"
+            - >-
+              test -n "$SUMMARIZATION_ALICAGPT_MODEL_NAME" &&
+              exec vllm serve "$SUMMARIZATION_ALICAGPT_MODEL_NAME" --host 0.0.0.0 --port 8000
+          envFrom:
+            - configMapRef:
+                name: regional-analytics-config
+            - secretRef:
+                name: regional-analytics-secrets
           ports:
             - containerPort: 8000
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: vllm
+  name: alicagpt
   namespace: regional-analytics
 spec:
   selector:
-    app: vllm
+    app: alicagpt
   ports:
     - port: 8000
       targetPort: 8000

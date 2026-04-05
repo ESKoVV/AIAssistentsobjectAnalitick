@@ -85,7 +85,7 @@ def test_consumer_generates_description_publishes_event_and_logs_costs(tmp_path)
                         "ФРАЗЫ: нет горячей воды; сроки восстановления подачи; адреса домов; график отключения; ремонтные работы"
                     ),
                     usage=LLMUsage(input_tokens=120, output_tokens=40),
-                    model_name="gpt-4o",
+                    model_name="alicagpt-primary",
                 ),
             ],
         ),
@@ -151,7 +151,7 @@ def test_service_skips_cached_cluster_and_creates_history_on_regeneration(tmp_pa
                         "ФРАЗЫ: нет горячей воды; сроки восстановления подачи; адреса домов; график отключения; ремонтные работы"
                     ),
                     usage=LLMUsage(input_tokens=100, output_tokens=30),
-                    model_name="gpt-4o",
+                    model_name="alicagpt-primary",
                 ),
             ],
         ),
@@ -205,17 +205,17 @@ def test_service_marks_needs_review_after_exhausting_retries_and_records_fallbac
                     LLMResponse(
                         text="ОПИСАНИЕ: проблема.\nФРАЗЫ: проблема; сроки",
                         usage=LLMUsage(input_tokens=90, output_tokens=10),
-                        model_name="llama3-70b",
+                        model_name="alicagpt-fallback",
                     ),
                     LLMResponse(
                         text="ОПИСАНИЕ: проблема.\nФРАЗЫ: проблема; сроки",
                         usage=LLMUsage(input_tokens=95, output_tokens=10),
-                        model_name="llama3-70b",
+                        model_name="alicagpt-fallback",
                     ),
                     LLMResponse(
                         text="ОПИСАНИЕ: проблема.\nФРАЗЫ: проблема; сроки",
                         usage=LLMUsage(input_tokens=95, output_tokens=10),
-                        model_name="llama3-70b",
+                        model_name="alicagpt-fallback",
                     ),
                 ],
             ),

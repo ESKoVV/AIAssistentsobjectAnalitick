@@ -14,7 +14,7 @@
 - ранжирование проблем по прозрачным метрикам;
 - read-only API для выдачи топа проблем, истории, таймлайна и документов кластера;
 - web-интерфейс для аналитика с картой, графиками, фильтрами и карточками тем;
-- fallback UI на mock-данные при отсутствии backend.
+- dev-only mock-режим UI через `VITE_USE_MOCKS=true`.
 
 ## Особенность проекта в следующем
 
@@ -33,7 +33,7 @@
 - React 18, TypeScript, Vite;
 - Tailwind CSS, React Query, Recharts, Leaflet;
 - Hugging Face Transformers, Torch;
-- vLLM для self-hosted OpenAI-compatible summarization endpoint;
+- self-hosted `AlicaGPT` для summarization в российском контуре;
 - Docker, Docker Compose, Nginx.
 
 ## Демо
@@ -41,14 +41,14 @@
 - локальный UI доступен по адресу `http://localhost:8081` после контейнерного запуска;
 - локальный API Swagger доступен по адресу `http://localhost:8000/api/docs`;
 - по умолчанию в production-compose авторизация для API отключена через `API_AUTH_DISABLED=true`, отдельный тестовый пользователь не требуется;
-- для быстрого демо интерфейса без backend можно собрать UI с mock-данными.
+- для локальной разработки можно явно включить mock-режим UI через `VITE_USE_MOCKS=true`.
 
 ## Среда запуска
 
 1. Windows 10/11, Linux или macOS с установленным Docker Desktop или Docker Engine.
 2. Для локального запуска без Docker: Python 3.11+, Node.js 20+, PostgreSQL 14+ и Kafka.
 3. Для production-контура требуется PostgreSQL с доступной базой данных; в текущем compose-файле база поднимается вне docker-compose.
-4. Для полного ML-контура желательно достаточно RAM/CPU; профиль `llm` дополнительно поднимает `vLLM`.
+4. Для полного ML-контура желательно достаточно RAM/CPU; профиль `llm` дополнительно поднимает self-hosted `AlicaGPT`.
 
 ## Установка и запуск
 

@@ -39,6 +39,7 @@ export interface TopItem {
   summary: string;
   category: string;
   category_label: string;
+  importance_reason: string;
   key_phrases: string[];
   urgency: UrgencyLevel;
   urgency_reason: string;
@@ -53,6 +54,9 @@ export interface TopItem {
   sample_posts: SamplePost[];
   score: number;
   score_breakdown: ScoreBreakdown;
+  period_start: string;
+  period_end: string;
+  computed_at: string;
 }
 
 export interface TopResponse {
