@@ -7,8 +7,13 @@ export const TimelineLineChart = ({ data }: { data: { date: string; count: numbe
         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
         <XAxis dataKey="date" stroke="#94a3b8" />
         <YAxis stroke="#94a3b8" />
-        <Tooltip />
-        <Line type="monotone" dataKey="count" stroke="#60a5fa" />
+        <Tooltip
+          formatter={(value: number) => [`${value}`, 'Посты']}
+          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 8 }}
+          labelStyle={{ color: '#e2e8f0' }}
+          itemStyle={{ color: '#93c5fd' }}
+        />
+        <Line type="monotone" dataKey="count" name="Посты" stroke="#60a5fa" />
       </LineChart>
     </ResponsiveContainer>
   </div>
